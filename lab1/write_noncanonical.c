@@ -15,6 +15,8 @@
 #define FALSE 0
 #define TRUE 1
 
+#define SET_SIZE 5
+
 int alarmEnabled = FALSE;
 int alarmCount = 0;
 
@@ -80,8 +82,8 @@ int main(int argc, char *argv[]) {
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0;  // Inter-character timer unused
-    newtio.c_cc[VMIN] = 0;   // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 0;  // Timeout entre bytes
+    newtio.c_cc[VMIN] = 0;   // Numero minimo de bytes a serem lidos
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -112,7 +114,7 @@ int main(int argc, char *argv[]) {
 
     do {
         alarmCount++;
-        res = write(fd, buf, SET_SIZE);  // envia o \0
+        int res = write(fd, buf, SET_SIZE);  // envia o \0
         printf("%d bytes written\n", res);
 
         alarm(3);
@@ -122,12 +124,12 @@ int main(int argc, char *argv[]) {
         // unsigned char checkBuf[2]; // checkBuf terá valores de A e C para
         // verificar BCC
 
-        while (STOP == FALSE) {      /* loop for input */
-            res = read(fd, buf1, 1); /* returns after 1 char has been input */
+        while (STOP == FALSE) {     /* loop for input */
+            res = read(fd, buf, 1); /* returns after 1 char has been input */
             if (res == -1) break;
 
             printf("nº bytes lido: %d - ", res);
-            printf("content: %#4.2x\n", buf1[0]);
+            printf("content: %#4.2x\n", buf[0]);
 
             // determineState(&state, checkBuf, buf1[0]);
 
