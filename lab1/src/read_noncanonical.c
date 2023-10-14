@@ -10,21 +10,8 @@
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
+#include "macros.h"
 
-// Baudrate settings are defined in <asm/termbits.h>, which is
-// included by <termios.h>
-#define BAUDRATE B38400
-#define _POSIX_SOURCE 1  // POSIX compliant source
-
-#define FALSE 0
-#define TRUE 1
-
-#define BUF_SIZE 256
-#define FLAG 0x7E;
-#define C_SET 0x03;
-#define C_UA 0x07
-
-volatile int STOP = FALSE;
 
 int main(int argc, char *argv[]) {
     // Program usage: Uses either COM1 or COM2
