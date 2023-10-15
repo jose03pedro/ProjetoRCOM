@@ -24,7 +24,5 @@ enum State {
     A_RCV,
     C_RCV,
     BCC_OK,
-    STOP
+    STOP_RCV
 };
-
-volatile int STOP = FALSE;

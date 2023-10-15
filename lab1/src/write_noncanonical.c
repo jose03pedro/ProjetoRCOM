@@ -7,8 +7,9 @@
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
-#include "macros.h"
+#include "../include/macros.h"
 
+volatile int STOP = FALSE;
 
 int alarmEnabled = FALSE;
 int alarmCount = 0;
@@ -21,7 +22,7 @@ void alarmHandler(int signal) {
     printf("Alarm #%d\n", alarmCount);
 }
 
-
+/*
 void stateMachine(enum State *state, int *a, int *c, char byte) {
     switch (*state) {
         case START:
@@ -74,7 +75,8 @@ void stateMachine(enum State *state, int *a, int *c, char byte) {
             // Handle STOP state if needed
             break;
     }
-}
+} 
+*/
 
 
 int main(int argc, char *argv[]) {
@@ -167,53 +169,52 @@ int main(int argc, char *argv[]) {
 
         //STOP = FALSE;
 
-        enum State state = START;
+        //enum State state = START;
 
         // Reset buf for reception
         memset(buf, 0, BUF_SIZE);
 
         // Receive response
-        while (state != STOP) 
-        {
-            res = read(fd, buf, BUF_SIZE);
-            if (res == -1) 
-            {
-                printf("Read failed\n");
-                break;
-            } 
-            else if (res > 0)
-            {
-                printf("Received %d bytes: ", res);
+        res = read(fd, buf, BUF_SIZE);
+        if (res == -1) {
+            printf("Read failed\n");
+            break;
+        } else if (res > 0) {
+            printf("Received %d bytes: ", res);
 
-                for (int i = 0; i < res; i++) 
-                {
-                    printf("%#x ", buf[i]);
-                }
-
-                printf("\n");
-
-                // Reset the alarm and stop receiving
-                alarm(0);
-                alarmEnabled = FALSE;
-                if (state == STOP)
-                {
-                    break;
-                }
-                
+            for (int i = 0; i < res; i++) {
+                printf("%#x ", buf[i]);
             }
+
+// Check if the received bytes match the UA frame structure
+            if (res == 5 && buf[0] == FLAG && buf[1] == A_SR &&
+                buf[2] == C_UA && buf[3] == (A_SR ^ C_UA) && buf[4] == FLAG) {
+                printf("Received UA frame\n");
+                break;
+            } else {
+                printf("Received frame does not match UA\n");
+                // Handle other frames if needed
+            }
+
+            printf("\n");
+
+            // Reset the alarm and stop receiving
+            alarm(0);
+            alarmEnabled = FALSE;
+            /*if (state == STOP) {
+                break;
+            }*/
         }
 
+
+
+
+
+
+
+
+
     }
-
-
-
-
-
-
-
-
-
-
     // Wait until all bytes have been written to the serial port
     sleep(1);
 

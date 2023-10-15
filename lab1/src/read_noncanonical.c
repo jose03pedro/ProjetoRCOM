@@ -10,8 +10,9 @@
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
-#include "macros.h"
+#include "../include/macros.h"
 
+volatile int STOP = FALSE;
 
 int main(int argc, char *argv[]) {
     // Program usage: Uses either COM1 or COM2
@@ -85,9 +86,11 @@ int main(int argc, char *argv[]) {
             printf("var = 0x%02X\n", buf[i]);
         }
         if (buf[3] == 0x00) {
-            buf[1] = 0x01;
-            buf[2] = 0x07;
-            buf[3] = 0x01 ^ 0x07;
+            buf[0] = FLAG;
+            buf[1] = A_SR;
+            buf[2] = C_UA;
+            buf[3] = A_SR ^ C_UA;
+            buf[4] = FLAG;
         }
 
         buf[bytes] = '\0';  // Set end of string to '\0', so we can printf
