@@ -2,6 +2,7 @@
 #define TRUE 1
 
 #define SET_SIZE 5
+#define UA_SIZE 5
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>

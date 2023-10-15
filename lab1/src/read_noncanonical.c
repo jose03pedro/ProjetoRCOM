@@ -80,22 +80,23 @@ int main(int argc, char *argv[]) {
 
     while (STOP == FALSE) {
         // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
+        int bytes = read(fd, buf, SET_SIZE);
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < bytes; i++) {
             printf("var = 0x%02X\n", buf[i]);
         }
-        if (buf[3] == 0x00) {
+        if (bytes == SET_SIZE && buf[0] == FLAG && buf[1] == A_SR && buf[2] == C_SET && buf[3] == (A_SR ^ C_SET) && buf[4] == FLAG) {
             buf[0] = FLAG;
             buf[1] = A_SR;
             buf[2] = C_UA;
             buf[3] = A_SR ^ C_UA;
             buf[4] = FLAG;
+            printf("Received SET frame.\n");
         }
 
         buf[bytes] = '\0';  // Set end of string to '\0', so we can printf
 
-        write(fd, buf, BUF_SIZE);
+        write(fd, buf, UA_SIZE);
 
         // printf(":%s:%d\n", buf, bytes);
         if (buf[4] == 0x7E) STOP = TRUE;

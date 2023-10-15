@@ -175,24 +175,26 @@ int main(int argc, char *argv[]) {
         memset(buf, 0, BUF_SIZE);
 
         // Receive response
-        res = read(fd, buf, BUF_SIZE);
+        res = read(fd, buf, UA_SIZE);
         if (res == -1) {
             printf("Read failed\n");
             break;
         } else if (res > 0) {
-            printf("Received %d bytes: ", res);
+            printf("Received %d bytes: \n", res);
 
             for (int i = 0; i < res; i++) {
-                printf("%#x ", buf[i]);
+                printf("var = 0x%02X\n", buf[i]);
             }
 
 // Check if the received bytes match the UA frame structure
-            if (res == 5 && buf[0] == FLAG && buf[1] == A_SR &&
+            if (res == UA_SIZE && buf[0] == FLAG && buf[1] == A_SR &&
                 buf[2] == C_UA && buf[3] == (A_SR ^ C_UA) && buf[4] == FLAG) {
-                printf("Received UA frame\n");
+                printf("Received UA frame.\n");
+                alarm(0);
+                alarmEnabled = FALSE;
                 break;
             } else {
-                printf("Received frame does not match UA\n");
+                printf("Received frame does not match UA.\n");
                 // Handle other frames if needed
             }
 
