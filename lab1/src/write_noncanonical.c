@@ -22,61 +22,58 @@ void alarmHandler(int signal) {
     printf("Alarm #%d\n", alarmCount);
 }
 
-/*
-void stateMachine(enum State *state, int *a, int *c, char byte) {
-    switch (*state) {
-        case START:
-            if (byte == FLAG) {
-                *state = FLAG_RCV;
-            }
-            break;
+void stateMachine(enum State *state, int *a, int *c, char byte)
+{
 
-        case FLAG_RCV:
-            if (byte == FLAG) {
-                *state = FLAG_RCV;
-            } else if (byte == A_SR) {
-                *state = A_RCV;
-                *a = byte;
-            } else {
-                *state = START;
-            }
-            break;
+    switch (*state)
+    {
+    case START:
+        if (byte == FLAG)
+            *state = FLAG_RCV;
+        break;
 
-        case A_RCV:
-            if (byte == FLAG) {
-                *state = FLAG_RCV;
-            } else if (byte == C_SET) {
-                *state = C_RCV;
-                *c = byte;
-            } else {
-                *state = START;
-            }
-            break;
+    case FLAG_RCV:
+        if (byte == A_SR)
+        {
+            *state = A_RCV;
+            *a = byte;
+        }
+        else if (byte != FLAG)
+            *state = START;
+        break;
 
-        case C_RCV:
-            if (byte == FLAG) {
-                *state = FLAG_RCV;
-            } else if (byte == (*a ^ *c)) {
-                *state = BCC_OK;
-            } else {
-                *state = START;
-            }
-            break;
+    case A_RCV:
+        if (byte == FLAG)
+            *state = FLAG_RCV;
+        if (byte == C_SET)
+        {
+            *state = C_RCV;
+            *c = byte;
+        }
+        else
+            *state = START;
+        break;
 
-        case BCC_OK:
-            if (byte == FLAG) {
-                *state = STOP;
-            } else {
-                *state = START;
-            }
-            break;
+    case C_RCV:
+        if (byte == FLAG)
+            *state = FLAG;
+        if (byte == (*a ^ *c))
+            *state = BCC_OK;
+        else
+            *state = START;
+        break;
 
-        case STOP:
-            // Handle STOP state if needed
-            break;
+    case BCC_OK:
+        if (byte == FLAG)
+            *state = STOP_STATE;
+        else
+            *state = START;
+        break;
+
+    case STOP_STATE:
+        break;
     }
-} 
-*/
+}
 
 
 int main(int argc, char *argv[]) {
@@ -203,9 +200,6 @@ int main(int argc, char *argv[]) {
             // Reset the alarm and stop receiving
             alarm(0);
             alarmEnabled = FALSE;
-            /*if (state == STOP) {
-                break;
-            }*/
         }
 
 

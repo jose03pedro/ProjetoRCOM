@@ -14,6 +14,59 @@
 
 volatile int STOP = FALSE;
 
+void stateMachine(enum State *state, int *a, int *c, char byte)
+{
+
+    switch (*state)
+    {
+    case START:
+        if (byte == FLAG)
+            *state = FLAG_RCV;
+        break;
+
+    case FLAG_RCV:
+        if (byte == A_SR)
+        {
+            *state = A_RCV;
+            *a = byte;
+        }
+        else if (byte != FLAG)
+            *state = START;
+        break;
+
+    case A_RCV:
+        if (byte == FLAG)
+            *state = FLAG_RCV;
+        if (byte == C_UA)
+        {
+            *state = C_RCV;
+            *c = byte;
+        }
+        else
+            *state = START;
+        break;
+
+    case C_RCV:
+        if (byte == FLAG)
+            *state = FLAG;
+        if (byte == (*a ^ *c))
+            *state = BCC_OK;
+        else
+            *state = START;
+        break;
+
+    case BCC_OK:
+        if (byte == FLAG)
+            *state = STOP_STATE;
+        else
+            *state = START;
+        break;
+
+    case STOP_STATE:
+        break;
+    }
+}
+
 int main(int argc, char *argv[]) {
     // Program usage: Uses either COM1 or COM2
     const char *serialPortName = argv[1];
