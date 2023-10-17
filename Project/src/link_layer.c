@@ -153,7 +153,7 @@ int llclose(int showStatistics)
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
 
-int transmitFrame(int fd, unsigned char A, unsigned char C) {
+int transmitFrame(unsigned char A, unsigned char C, int fd) {
     unsigned char f[5];
     f[0] = FLAG;
     f[1] = A;

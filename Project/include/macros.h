@@ -25,9 +25,10 @@
 
 #define FLAG 0x7E
 #define ESCAPE  0x7D
-#define ESCAPE_FLAG 0x5E
-#define ESCAPE_ESCAPE 0x5D
 #define STUFFING 0x20
+#define ESCAPE_FLAG (FLAG ^ STUFFING)	
+#define ESCAPE_ESCAPE (ESCAPE ^ STUFFING)
+
 
 
 #define A_SR 0x03

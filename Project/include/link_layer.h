@@ -34,7 +34,7 @@ void stateMachineTx(unsigned char byte, State *state);
 
 void stateMachineRx(unsigned char byte, State *state);
 
-int transmitFrame(int fd, unsigned char a, unsigned char c);
+int transmitFrame(unsigned char A, unsigned char C, int fd);
 
 int openConnection(const char *serialPort);
 
