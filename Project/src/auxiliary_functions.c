@@ -176,3 +176,47 @@ int openConnection(const char *serialPort) {
     return fd;
 }
 
+void sendControlPackets(int fd, const char *filename, int fileSize, unsigned char sequence) {
+    unsigned int cpSize;
+    unsigned char *controlPacketStart = getControlPacket(2, filename, fileSize, &cpSize);
+    if (llwrite(fd, controlPacketStart, cpSize) == -1) {
+        printf("Exit: error in start packet\n");
+        exit(-1);
+    }
+
+    // Free the memory allocated for controlPacketStart after using it
+    free(controlPacketStart);
+
+    unsigned char* content = getData(file, fileSize);
+    long int bytesLeft = fileSize;
+
+    while (bytesLeft > 0) {
+        int dataSize = (bytesLeft > MAX_PAYLOAD_SIZE) ? MAX_PAYLOAD_SIZE : bytesLeft;
+        unsigned char* data = (unsigned char*) malloc(dataSize);
+        memcpy(data, content, dataSize);
+        int packetSize;
+        unsigned char* packet = getDataPacket(sequence, data, dataSize, &packetSize);
+
+        if (llwrite(fd, packet, packetSize) == -1) {
+            printf("Exit: error in data packets\n");
+            exit(-1);
+        }
+
+        // Free the memory allocated for data and packet after using them
+        free(data);
+        free(packet);
+
+        bytesLeft -= MAX_PAYLOAD_SIZE;
+        content += dataSize;
+        sequence = (sequence + 1) % 255;
+    }
+
+    unsigned char *controlPacketEnd = getControlPacket(3, filename, fileSize, &cpSize);
+    if (llwrite(fd, controlPacketEnd, cpSize) == -1) {
+        printf("Exit: error in end packet\n");
+        exit(-1);
+    }
+
+    // Free the memory allocated for controlPacketEnd after using it
+    free(controlPacketEnd);
+}
