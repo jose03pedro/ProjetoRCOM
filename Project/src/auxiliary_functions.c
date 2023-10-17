@@ -1,5 +1,9 @@
-#include "../include/link_layer.h"
 #include "../include/auxiliary_functions.h"
+
+#include "../include/link_layer.h"
+
+unsigned char tramaTx = 0;
+unsigned char tramaRx = 1;
 
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
@@ -17,11 +21,10 @@ int transmitFrame(unsigned char A, unsigned char C, int fd) {
     return write(fd, f, size);
 }
 
-void stateMachine(unsigned char byte, State *state){
+void stateMachine(unsigned char byte, State *state) {
     switch (*state) {
         case START:
-            if (byte == FLAG)
-                *state = FLAG_RCV;
+            if (byte == FLAG) *state = FLAG_RCV;
             break;
 
         case FLAG_RCV:
@@ -61,11 +64,10 @@ void stateMachine(unsigned char byte, State *state){
     }
 }
 
-void stateMachineTx(unsigned char byte, State *state){
+void stateMachineTx(unsigned char byte, State *state) {
     switch (*state) {
         case START:
-            if (byte == FLAG)
-                *state = FLAG_RCV;
+            if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
             if (byte == A_RS)
@@ -95,16 +97,96 @@ void stateMachineTx(unsigned char byte, State *state){
             else
                 *state = START;
             break;
-        default: 
+        default:
             break;
     }
+}
+
+int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
+                    int fd) {
+    int i = 0;
+    switch (*state) {
+        case START:
+            if (byte == FLAG) *state = FLAG_RCV;
+            break;
+        case FLAG_RCV:
+            if (byte == A_SR)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+        case A_RCV:
+            if (byte == C_SET)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case C_RCV:
+            if (byte == (A_SR ^ C_SET))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+        case ESC_FOUND:
+            *state = READING_DATA;
+            if (byte == ESC_FOUND || byte == FLAG)
+                packet[i++] = byte;
+            else {
+                packet[i++] = ESC_FOUND;
+                packet[i++] = byte;
+            }
+            break;
+        case READING_DATA:
+            if (byte == ESCAPE)
+                *state = ESC_FOUND;
+            else if (byte == FLAG) {
+                unsigned char bcc2 = packet[i - 1];
+                i--;
+                packet[i] = '\0';
+                unsigned char acc = packet[0];
+
+                for (unsigned int j = 1; j < i; j++) acc ^= packet[j];
+
+                if (bcc2 == acc) {
+                    *state = STOP_STATE;
+                    if (tramaRx == 0) {
+                        transmitFrame(fd, A_RS, C_RR0));
+                    } else if (tramaRx == 1) {
+                        transmitFrame(fd, A_RS, C_RR1));
+                    }
+                    -- --tramaRx = (tramaRx + 1) % 2;
+                    return i;
+                } else {
+                    printf("Error: retransmition\n");
+                    transmitFrame(fd, A_RS, C_REJ(tramaRx));
+                    return -1;
+                };
+
+            } else {
+                packet[i++] = byte;
+            }
+            break;
+        default:
+            break;
+    }
+
+    return 0;
 }
 
 void stateMachineRx(unsigned char byte, State *state) {
     switch (*state) {
         case START:
-            if (byte == FLAG)
-                *state = FLAG_RCV;
+            if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
             if (byte == A_SR)
@@ -137,7 +219,6 @@ void stateMachineRx(unsigned char byte, State *state) {
         default:
             break;
     }
-
 }
 
 int openConnection(const char *serialPort) {
@@ -171,7 +252,6 @@ int openConnection(const char *serialPort) {
         perror("tcsetattr");
         return -1;
     }
-
 
     return fd;
 }
