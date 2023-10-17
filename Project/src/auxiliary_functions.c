@@ -175,3 +175,4 @@ int openConnection(const char *serialPort) {
 
     return fd;
 }
+
