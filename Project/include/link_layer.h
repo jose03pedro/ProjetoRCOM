@@ -28,11 +28,13 @@ typedef struct
 #define FALSE 0
 #define TRUE 1
 
+void stateMachine(unsigned char byte, State *state);
+
 void stateMachineTx(unsigned char byte, State *state);
 
 void stateMachineRx(unsigned char byte, State *state);
 
-int sendSFrame(int fd, unsigned char a, unsigned char c);
+int transmitFrame(int fd, unsigned char a, unsigned char c);
 
 int openConnection(const char *serialPort);
 

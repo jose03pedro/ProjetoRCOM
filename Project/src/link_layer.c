@@ -3,6 +3,12 @@
 #include "../include/link_layer.h"
 #include "../include/macros.h"
 
+
+void alarmHandler(int signal) {
+    alarmEnabled = FALSE;
+    alarmCount++;
+}
+
 int alarmCount = 0;
 int alarmEnabled = FALSE;
 int retransmissions = 0;
@@ -10,11 +16,6 @@ int timer = 0;
 unsigned char tx_frame = 0;
 unsigned char rx_frame = 1;
 volatile int STOP = FALSE;
-
-void alarmHandler(int signal) {
-    alarmEnabled = FALSE;
-    alarmCount++;
-}
 
 
 
@@ -27,7 +28,7 @@ int llopen(LinkLayer connectionParameters)
     int fd = openConnection(connectionParameters.serialPort);
     if (fd < 0) return -1;
 
-    unsigned char byte;
+    unsigned char rByte;
     timer = connectionParameters.timeout;
     retransmissions = connectionParameters.nRetransmissions;
     switch (connectionParameters.role) {
@@ -36,14 +37,14 @@ int llopen(LinkLayer connectionParameters)
             (void) signal(SIGALRM, alarmHandler);
 
             do {
-                sendSFrame(fd, A_SR, C_SET);
+                transmitFrame(fd, A_SR, C_SET);
                 alarm(timer);
                 alarmEnabled = FALSE;
 
                 do {
-                    switch (read(fd, &byte, 1)) {
+                    switch (read(fd, &rByte, 1)) {
                         case 1:
-                            stateMachineTx(byte, &state);
+                            stateMachineTx(rByte, &state);
                             if(state == STOP_STATE) {
                                 printf("Connection established\n");
                             }
@@ -65,9 +66,9 @@ int llopen(LinkLayer connectionParameters)
 
         case LlRx: {
             do {
-                switch (read(fd, &byte, 1)) {
+                switch (read(fd, &rByte, 1)) {
                     case 1:
-                        stateMachineRx(byte, &state);
+                        stateMachineRx(rByte, &state);
                         if(state == STOP_STATE) {
                             printf("Connection established\n");
                         }
@@ -80,7 +81,7 @@ int llopen(LinkLayer connectionParameters)
                 }
             } while (state != STOP_STATE);
 
-            sendSFrame(fd, A_RS, C_UA);
+            transmitFrame(fd, A_RS, C_UA);
             break;
         }
 
@@ -107,9 +108,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    // TODO
-
-    return 0;
+    return 1;
 }
 
 ////////////////////////////////////////////////
@@ -117,24 +116,101 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int showStatistics)
 {
-    // TODO
+    State state = START;
+    unsigned char rByte;
+    (void) signal(SIGALRM, alarmHandler);
+    
 
-    return 1;
+    while (retransmissions > 0 && state != STOP_STATE)
+    {
+        alarmCount++;
+        alarm(TIMEOUT);
+        alarmEnabled = FALSE;
+
+        while(state != STOP_STATE && alarmEnabled == FALSE)
+        {
+            switch (read(showStatistics, &rByte, 1)) {
+                case 1:
+                    stateMachine(rByte, &state);
+                    if(state == STOP_STATE) {
+                        printf("Connection established\n");
+                    }
+                    else return 1;
+                    break;
+                case -1:
+                    return -1;
+                    break;
+                default:
+                    break;
+            }
+        }
+        retransmissions--;
+    }
+
+    
+    transmitFrame(showStatistics, A_SR, C_UA);
+    if(close(showStatistics) == -1) return -1;
+    else return 0;
 }
 
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
 
-int sendSFrame(int fd, unsigned char A, unsigned char C) {
+int transmitFrame(int fd, unsigned char A, unsigned char C) {
     unsigned char f[5];
     f[0] = FLAG;
     f[1] = A;
     f[2] = C;
     f[3] = BCC(A, C);
     f[4] = FLAG;
+    unsigned int size = sizeof(f);
 
-    return write(fd, f, sizeof(f));
+    return write(fd, f, size);
+}
+
+void stateMachine(unsigned char byte, State *state){
+    switch (*state) {
+        case START:
+            if (byte == FLAG)
+                *state = FLAG_RCV;
+            break;
+
+        case FLAG_RCV:
+            if (byte == A_RS)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+
+        case A_RCV:
+            if (byte == C_DISC)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+
+        case C_RCV:
+            if (byte == (A_RS ^ C_DISC))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+
+        default:
+            break;
+    }
 }
 
 void stateMachineTx(unsigned char byte, State *state){
