@@ -3,14 +3,15 @@
 #include "../include/link_layer.h"
 #include "../include/macros.h"
 
+int alarmCount = 0;
+int alarmEnabled = FALSE;
 
 void alarmHandler(int signal) {
     alarmEnabled = FALSE;
     alarmCount++;
 }
 
-int alarmCount = 0;
-int alarmEnabled = FALSE;
+
 int retransmissions = 0;
 int timer = 0;
 unsigned char tx_frame = 0;
@@ -22,54 +23,32 @@ volatile int STOP = FALSE;
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
-int llopen(LinkLayer connectionParameters)
-{
+int llopen(LinkLayer connectionParameters) {
     State state = START;
-    int fd = openConnection(connectionParameters.serialPort);
-    if (fd < 0) return -1;
+    int fd;
+    if ((fd = openConnection(connectionParameters.serialPort)) < 0) {
+        return -1;
+    }
+
+    LinkLayerRole role = connectionParameters.role;
 
     unsigned char rByte;
     timer = connectionParameters.timeout;
     retransmissions = connectionParameters.nRetransmissions;
-    switch (connectionParameters.role) {
 
-        case LlTx: {
-            (void) signal(SIGALRM, alarmHandler);
+    if (role == LlTx) {
+        (void)signal(SIGALRM, alarmHandler);
 
-            do {
-                transmitFrame(fd, A_SR, C_SET);
-                alarm(timer);
-                alarmEnabled = FALSE;
+        do {
+            transmitFrame(fd, A_SR, C_SET);
+            alarm(timer);
+            alarmEnabled = FALSE;
 
-                do {
-                    switch (read(fd, &rByte, 1)) {
-                        case 1:
-                            stateMachineTx(rByte, &state);
-                            if(state == STOP_STATE) {
-                                printf("Connection established\n");
-                            }
-                            break;
-                        case -1:
-                            return -1;
-                            break;
-                        default:
-                            break;
-                    }
-                } while (alarmEnabled == FALSE && state != STOP_STATE);
-
-                retransmissions--;
-            } while (retransmissions != 0 && state != STOP_STATE);
-
-            if (state != STOP_STATE) return -1;
-            break;
-        }
-
-        case LlRx: {
             do {
                 switch (read(fd, &rByte, 1)) {
                     case 1:
-                        stateMachineRx(rByte, &state);
-                        if(state == STOP_STATE) {
+                        stateMachineTx(rByte, &state);
+                        if (state == STOP_STATE) {
                             printf("Connection established\n");
                         }
                         break;
@@ -79,15 +58,32 @@ int llopen(LinkLayer connectionParameters)
                     default:
                         break;
                 }
-            } while (state != STOP_STATE);
+            } while (alarmEnabled == FALSE && state != STOP_STATE);
 
-            transmitFrame(fd, A_RS, C_UA);
-            break;
-        }
+            retransmissions--;
+        } while (retransmissions != 0 && state != STOP_STATE);
 
-        default:
-            return -1;
-            break;
+        if (state != STOP_STATE) return -1;
+    } else if (role == LlRx) {
+        do {
+            switch (read(fd, &rByte, 1)) {
+                case 1:
+                    stateMachineRx(rByte, &state);
+                    if (state == STOP_STATE) {
+                        printf("Connection established\n");
+                    }
+                    break;
+                case -1:
+                    return -1;
+                    break;
+                default:
+                    break;
+            }
+        } while (state != STOP_STATE);
+
+        transmitFrame(fd, A_RS, C_UA);
+    } else {
+        return -1;
     }
 
     return fd;
