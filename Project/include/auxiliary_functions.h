@@ -1,5 +1,5 @@
-#ifndef MACROS_H
-#define MACROS_H
+#ifndef AUXILIARY_FUNCTIONS_H
+#define AUXILIARY_FUNCTIONS_H
 
 #include <signal.h>
 #include <string.h>
@@ -58,5 +58,15 @@ typedef enum {
     BCC1_OK,
     STOP_STATE,
 } State;
+
+void stateMachine(unsigned char byte, State *state);
+
+void stateMachineTx(unsigned char byte, State *state);
+
+void stateMachineRx(unsigned char byte, State *state);
+
+int transmitFrame(unsigned char A, unsigned char C, int fd);
+
+int openConnection(const char *serialPort);
 
 #endif
