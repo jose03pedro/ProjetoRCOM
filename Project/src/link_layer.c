@@ -120,7 +120,7 @@ int llclose(int showStatistics)
     while (retransmissions > 0 && state != STOP_STATE)
     {
         alarmCount++;
-        alarm(TIMEOUT);
+        alarm(timer);
         alarmEnabled = FALSE;
 
         while(state != STOP_STATE && alarmEnabled == FALSE)
