@@ -3,7 +3,7 @@
 
 #ifndef _LINK_LAYER_H_
 #define _LINK_LAYER_H_
-#include "macros.h"
+#include "auxiliary_functions.h"
 
 typedef enum
 {
@@ -27,16 +27,6 @@ typedef struct
 // MISC
 #define FALSE 0
 #define TRUE 1
-
-void stateMachine(unsigned char byte, State *state);
-
-void stateMachineTx(unsigned char byte, State *state);
-
-void stateMachineRx(unsigned char byte, State *state);
-
-int transmitFrame(unsigned char A, unsigned char C, int fd);
-
-int openConnection(const char *serialPort);
 
 // Open a connection using the "port" parameters defined in struct linkLayer.
 // Return "1" on success or "-1" on error.
