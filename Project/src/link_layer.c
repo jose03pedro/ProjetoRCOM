@@ -44,6 +44,9 @@ int llopen(LinkLayer connectionParameters)
                     switch (read(fd, &byte, 1)) {
                         case 1:
                             stateMachineTx(byte, &state);
+                            if(state == STOP_STATE) {
+                                printf("Connection established\n");
+                            }
                             break;
                         case -1:
                             return -1;
@@ -65,6 +68,9 @@ int llopen(LinkLayer connectionParameters)
                 switch (read(fd, &byte, 1)) {
                     case 1:
                         stateMachineRx(byte, &state);
+                        if(state == STOP_STATE) {
+                            printf("Connection established\n");
+                        }
                         break;
                     case -1:
                         return -1;
