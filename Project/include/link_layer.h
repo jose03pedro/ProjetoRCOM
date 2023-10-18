@@ -5,14 +5,12 @@
 #define _LINK_LAYER_H_
 #include "auxiliary_functions.h"
 
-typedef enum
-{
+typedef enum {
     LlTx,
     LlRx,
 } LinkLayerRole;
 
-typedef struct
-{
+typedef struct {
     char serialPort[50];
     LinkLayerRole role;
     int baudRate;
@@ -41,8 +39,8 @@ int llwrite(const unsigned char *buf, int bufSize);
 int llread(unsigned char *packet);
 
 // Close previously opened connection.
-// if showStatistics == TRUE, link layer should print statistics in the console on close.
-// Return "1" on success or "-1" on error.
+// if showStatistics == TRUE, link layer should print statistics in the console
+// on close. Return "1" on success or "-1" on error.
 int llclose(int showStatistics);
 
-#endif // _LINK_LAYER_H_
+#endif  // _LINK_LAYER_H_
