@@ -85,7 +85,7 @@ int llopen(LinkLayer connectionParameters) {
         return -1;
     }
 
-    return fd;
+    return 1;
 }
 
 ////////////////////////////////////////////////
@@ -148,8 +148,6 @@ int llclose(int showStatistics) {
     }
 
     transmitFrame(showStatistics, A_SR, C_UA);
-    if (close(showStatistics) == -1)
-        return -1;
-    else
-        return 0;
+    if(close(showStatistics) == -1) return -1;
+    else return 1;
 }
