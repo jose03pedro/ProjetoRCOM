@@ -76,7 +76,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             else continue;
         }
         fclose(newFile);
-        break;
+        free(packet);
     }
     else
     {

@@ -92,9 +92,22 @@ int llopen(LinkLayer connectionParameters) {
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize) {
-    // TODO
+    int fd = openConnection(serialPort);
+    unsigned char *frame = NULL;
+    int f_size = createFrame(&frame, buf, bufSize);
 
-    return 0;
+    if (f_size < 0) {
+        return -1;  // Frame creation error
+    }
+
+    int res = sendFrame(fd, frame, f_size, &retransmissions, timer, &alarmEnabled);
+
+    if (res < 0) {
+        llclose(fd);
+        return -1;  // Transmission or close error
+    }
+
+    return res;
 }
 
 ////////////////////////////////////////////////
@@ -103,7 +116,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
 int llread(unsigned char *packet) {
     unsigned char byte, cField;
-    int i, res = 0;
+    int res = 0;
     State state = START;
     int fd = openConnection(serialPort);
 
