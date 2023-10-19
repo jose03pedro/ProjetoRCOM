@@ -160,12 +160,21 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
 
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
+<<<<<<< HEAD
                     if (rxFrame == 0) {
                         transmitFrame(fd, A_RS, C_RR0);
                     } else if (rxFrame == 1) {
                         transmitFrame(fd, A_RS, C_RR1);
                     }
                     rxFrame = (rxFrame + 1) % 2;
+=======
+                    if (tramaRx == 0) {
+                        transmitFrame(fd, A_RS, C_RR0);
+                    } else if (tramaRx == 1) {
+                        transmitFrame(fd, A_RS, C_RR1);
+                    }
+                    tramaRx = (tramaRx + 1) % 2;
+>>>>>>> main
                     return i;
                 } else {
                     printf("Error: retransmition\n");
@@ -257,25 +266,33 @@ int openConnection(const char *serialPort) {
     return fd;
 }
 
-void sendControlPackets(int fd, const char *filename, int fileSize, unsigned char sequence) {
+void sendControlPackets(int fd, const char *filename, int fileSize,
+                        unsigned char sequence) {
     unsigned int cpSize;
+<<<<<<< HEAD
     unsigned char *controlPacketStart = getControlPacket(2, filename, fileSize, &cpSize);
+=======
+    unsigned char *controlPacketStart =
+        getControlPacket(2, filename, fileSize, &cpSize);
+>>>>>>> main
     if (llwrite(controlPacketStart, cpSize) == -1) {
         printf("Exit: error in start packet\n");
         exit(-1);
     }
 
     free(controlPacketStart);
-
-    unsigned char* content = getData(file, fileSize);
+    FILE *file = fopen(filename, "fn");
+    unsigned char *content = getData(file, fileSize);
     long int bytesLeft = fileSize;
 
     while (bytesLeft > 0) {
-        int dataSize = (bytesLeft > MAX_PAYLOAD_SIZE) ? MAX_PAYLOAD_SIZE : bytesLeft;
-        unsigned char* data = (unsigned char*) malloc(dataSize);
+        int dataSize =
+            (bytesLeft > MAX_PAYLOAD_SIZE) ? MAX_PAYLOAD_SIZE : bytesLeft;
+        unsigned char *data = (unsigned char *)malloc(dataSize);
         memcpy(data, content, dataSize);
         int packetSize;
-        unsigned char* packet = getDataPacket(sequence, data, dataSize, &packetSize);
+        unsigned char *packet =
+            getDataPacket(sequence, data, dataSize, &packetSize);
 
         if (llwrite(packet, packetSize) == -1) {
             printf("Exit: error in data packets\n");
@@ -290,7 +307,12 @@ void sendControlPackets(int fd, const char *filename, int fileSize, unsigned cha
         sequence = (sequence + 1) % 255;
     }
 
+<<<<<<< HEAD
     unsigned char *controlPacketEnd = getControlPacket(3, filename, fileSize, &cpSize);
+=======
+    unsigned char *controlPacketEnd =
+        getControlPacket(3, filename, fileSize, &cpSize);
+>>>>>>> main
     if (llwrite(controlPacketEnd, cpSize) == -1) {
         printf("Exit: error in end packet\n");
         exit(-1);
