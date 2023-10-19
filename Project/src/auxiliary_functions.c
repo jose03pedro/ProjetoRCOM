@@ -5,7 +5,6 @@
 unsigned char txFrame = 0;
 unsigned char rxFrame = 1;
 
-
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
@@ -140,7 +139,7 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
             break;
         case ESC_FOUND:
             *state = READING_DATA;
-            if (byte == ESC_FOUND || byte == FLAG)
+            if (byte == ESCAPE || byte == FLAG)
                 packet[i++] = byte;
             else {
                 packet[i++] = ESC_FOUND;
@@ -260,7 +259,8 @@ int openConnection(const char *serialPort) {
 void sendControlPackets(int fd, const char *filename, int fileSize,
                         unsigned char sequence) {
     unsigned int cpSize;
-    unsigned char *controlPacketStart = getControlPacket(2, filename, fileSize, &cpSize);
+    unsigned char *controlPacketStart =
+        getControlPacket(2, filename, fileSize, &cpSize);
     if (llwrite(controlPacketStart, cpSize) == -1) {
         printf("Exit: error in start packet\n");
         exit(-1);
@@ -293,7 +293,8 @@ void sendControlPackets(int fd, const char *filename, int fileSize,
         sequence = (sequence + 1) % 255;
     }
 
-    unsigned char *controlPacketEnd = getControlPacket(3, filename, fileSize, &cpSize);
+    unsigned char *controlPacketEnd =
+        getControlPacket(3, filename, fileSize, &cpSize);
     if (llwrite(controlPacketEnd, cpSize) == -1) {
         printf("Exit: error in end packet\n");
         exit(-1);
@@ -306,7 +307,7 @@ int createFrame(unsigned char **frame, const unsigned char *buf, int bufSize) {
     int frameSize = 6 + bufSize;
     *frame = (unsigned char *)malloc(frameSize);
     if (*frame == NULL) {
-        return -1; 
+        return -1;
     }
 
     (*frame)[0] = FLAG;
@@ -337,7 +338,8 @@ int createFrame(unsigned char **frame, const unsigned char *buf, int bufSize) {
     return frameSize;
 }
 
-int sendFrame(int fd, const unsigned char *frame, int frameSize, int *retransmissions, int timer, int *alarmEnabled) {
+int sendFrame(int fd, const unsigned char *frame, int frameSize,
+              int *retransmissions, int timer, int *alarmEnabled) {
     int currentTransmission = 0;
 
     while (currentTransmission < retransmissions) {

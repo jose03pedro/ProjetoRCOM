@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/jose03pedro/RC/Project/src",
-      "program": "/home/jose03pedro/RC/Project/src/build/Debug/outDebug",
+      "cwd": "/home/jose03pedro/RC/Project",
+      "program": "/home/jose03pedro/RC/Project/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
