@@ -8,6 +8,7 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 const char *serialPort;
 
+
 void alarmHandler(int signal) {
     alarmEnabled = FALSE;
     alarmCount++;
@@ -34,6 +35,7 @@ int llopen(LinkLayer connectionParameters) {
     unsigned char rByte;
     timer = connectionParameters.timeout;
     retransmissions = connectionParameters.nRetransmissions;
+    serialPort = connectionParameters.serialPort;
 
     if (role == LlTx) {
         (void)signal(SIGALRM, alarmHandler);
@@ -93,21 +95,7 @@ int llopen(LinkLayer connectionParameters) {
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize) {
     int fd = openConnection(serialPort);
-    unsigned char *frame = NULL;
-    int f_size = createFrame(&frame, buf, bufSize);
-
-    if (f_size < 0) {
-        return -1;  // Frame creation error
-    }
-
-    int res = sendFrame(fd, frame, f_size, &retransmissions, timer, &alarmEnabled);
-
-    if (res < 0) {
-        llclose(fd);
-        return -1;  // Transmission or close error
-    }
-
-    return res;
+    
 }
 
 ////////////////////////////////////////////////
