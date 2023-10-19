@@ -39,6 +39,7 @@
 #define C_RR1 0x85
 #define C_REJ0 0x01
 #define C_REJ1 0x81
+#define C_NS(Ns) (Ns << 6)
 
 #define BCC(a, c) (a ^ c)
 
@@ -71,5 +72,8 @@ int openConnection(const char *serialPort);
 
 void sendControlPackets(int fd, const char *filename, int fileSize, unsigned char sequence);
 
+int createFrame(unsigned char **frame, const unsigned char *buf, int bufSize);
+
+int sendFrame(int fd, const unsigned char *frame, int frameSize, int *retransmissions, int timer, int *alarmEnabled);
 
 #endif

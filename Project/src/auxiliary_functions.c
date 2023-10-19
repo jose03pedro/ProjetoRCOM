@@ -2,8 +2,9 @@
 
 #include "../include/link_layer.h"
 
-unsigned char tramaTx = 0;
-unsigned char tramaRx = 1;
+unsigned char txFrame = 0;
+unsigned char rxFrame = 1;
+
 
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
@@ -159,16 +160,16 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
 
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
-                    if (tramaRx == 0) {
+                    if (rxFrame == 0) {
                         transmitFrame(fd, A_RS, C_RR0);
-                    } else if (tramaRx == 1) {
+                    } else if (rxFrame == 1) {
                         transmitFrame(fd, A_RS, C_RR1);
                     }
-                    tramaRx = (tramaRx + 1) % 2;
+                    rxFrame = (rxFrame + 1) % 2;
                     return i;
                 } else {
                     printf("Error: retransmition\n");
-                    transmitFrame(fd, A_RS, C_REJ(tramaRx));
+                    transmitFrame(fd, A_RS, C_REJ(rxFrame));
                     return -1;
                 };
 
@@ -259,14 +260,12 @@ int openConnection(const char *serialPort) {
 void sendControlPackets(int fd, const char *filename, int fileSize,
                         unsigned char sequence) {
     unsigned int cpSize;
-    unsigned char *controlPacketStart =
-        getControlPacket(2, filename, fileSize, &cpSize);
+    unsigned char *controlPacketStart = getControlPacket(2, filename, fileSize, &cpSize);
     if (llwrite(controlPacketStart, cpSize) == -1) {
         printf("Exit: error in start packet\n");
         exit(-1);
     }
 
-    // Free the memory allocated for controlPacketStart after using it
     free(controlPacketStart);
     FILE *file = fopen(filename, "fn");
     unsigned char *content = getData(file, fileSize);
@@ -286,7 +285,6 @@ void sendControlPackets(int fd, const char *filename, int fileSize,
             exit(-1);
         }
 
-        // Free the memory allocated for data and packet after using them
         free(data);
         free(packet);
 
@@ -295,13 +293,77 @@ void sendControlPackets(int fd, const char *filename, int fileSize,
         sequence = (sequence + 1) % 255;
     }
 
-    unsigned char *controlPacketEnd =
-        getControlPacket(3, filename, fileSize, &cpSize);
+    unsigned char *controlPacketEnd = getControlPacket(3, filename, fileSize, &cpSize);
     if (llwrite(controlPacketEnd, cpSize) == -1) {
         printf("Exit: error in end packet\n");
         exit(-1);
     }
 
-    // Free the memory allocated for controlPacketEnd after using it
     free(controlPacketEnd);
+}
+
+int createFrame(unsigned char **frame, const unsigned char *buf, int bufSize) {
+    int frameSize = 6 + bufSize;
+    *frame = (unsigned char *)malloc(frameSize);
+    if (*frame == NULL) {
+        return -1; 
+    }
+
+    (*frame)[0] = FLAG;
+    (*frame)[1] = A_SR;
+    (*frame)[2] = C_NS(rxFrame);
+    (*frame)[3] = (*frame)[1] ^ (*frame)[2];
+    memcpy(*frame + 4, buf, bufSize);
+
+    unsigned char BCC2 = buf[0];
+    for (unsigned int i = 1; i < bufSize; i++) {
+        BCC2 ^= buf[i];
+    }
+
+    int j = 4;
+    for (unsigned int i = 0; i < bufSize; i++) {
+        if (buf[i] == FLAG || buf[i] == ESCAPE) {
+            (*frame) = (unsigned char *)realloc(*frame, ++frameSize);
+            if (*frame == NULL) {
+                return -1;
+            }
+            (*frame)[j++] = ESCAPE;
+        }
+        (*frame)[j++] = buf[i];
+    }
+    (*frame)[j++] = BCC2;
+    (*frame)[j++] = FLAG;
+
+    return frameSize;
+}
+
+int sendFrame(int fd, const unsigned char *frame, int frameSize, int *retransmissions, int timer, int *alarmEnabled) {
+    int currentTransmission = 0;
+
+    while (currentTransmission < retransmissions) {
+        alarmEnabled = FALSE;
+        alarm(timer);
+
+        if (write(fd, frame, frameSize) == -1) {
+            free(frame);
+            return -1;
+        }
+
+        unsigned char result = readControlFrame(fd);
+
+        if (!result) {
+            continue;
+        } else if (result == C_REJ0 || result == C_REJ1) {
+            currentTransmission++;
+        } else if (result == C_RR0 || result == C_RR1) {
+            rxFrame = (rxFrame + 1) % 2;
+            free(frame);
+            return frameSize;
+        } else {
+            continue;
+        }
+    }
+
+    free(frame);
+    return -1;
 }
