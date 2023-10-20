@@ -4,7 +4,6 @@
 
 unsigned char rxFrame = 1;
 
-
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
@@ -259,7 +258,8 @@ int openConnection(const char *serialPort) {
 void sendControlPackets(int fd, const char *filename, int fileSize,
                         unsigned char sequence) {
     unsigned int cpSize;
-    unsigned char *controlPacketStart = getControlPacket(2, filename, fileSize, &cpSize);
+    unsigned char *controlPacketStart =
+        getControlPacket(2, filename, fileSize, &cpSize);
     if (llwrite(controlPacketStart, cpSize) == -1) {
         printf("Exit: error in start packet\n");
         exit(-1);
@@ -292,7 +292,8 @@ void sendControlPackets(int fd, const char *filename, int fileSize,
         sequence = (sequence + 1) % 255;
     }
 
-    unsigned char *controlPacketEnd = getControlPacket(3, filename, fileSize, &cpSize);
+    unsigned char *controlPacketEnd =
+        getControlPacket(3, filename, fileSize, &cpSize);
     if (llwrite(controlPacketEnd, cpSize) == -1) {
         printf("Exit: error in end packet\n");
         exit(-1);
