@@ -72,8 +72,4 @@ int openConnection(const char *serialPort);
 
 void sendControlPackets(int fd, const char *filename, int fileSize, unsigned char sequence);
 
-int createFrame(unsigned char **frame, const unsigned char *buf, int bufSize);
-
-int sendFrame(int fd, const unsigned char *frame, int frameSize, int *retransmissions, int timer, int *alarmEnabled);
-
 #endif
