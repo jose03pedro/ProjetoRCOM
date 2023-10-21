@@ -8,6 +8,8 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 const char *serialPort;
 
+unsigned char txFrame = 0;
+
 
 void alarmHandler(int signal) {
     alarmEnabled = FALSE;
@@ -95,7 +97,79 @@ int llopen(LinkLayer connectionParameters) {
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize) {
     int fd = openConnection(serialPort);
+
+    // Create frame
+    unsigned char frame[MAX_PAYLOAD_SIZE] = {0};
+    frame[0] = FLAG;
+    frame[1] = A_SR;
+    if (txFrame == 0) {
+        frame[2] = C_I0;
+    } else {
+        frame[2] = C_I1;
+    }
+    frame[3] = BCC(frame[1], frame[2]);
+
+    int bsize = bufSize;
+    unsigned char bcc2 = 0;
+    bcc2 = buf[0];
+    int var = 0;
+
+    // BCC2
+    while (bsize > 0)
+    {
+        var++;
+        bcc2 ^= buf[var];
+        bsize--;
+    }
+
+    // Stuffing
+    int i = 4;
+    int j = 0;
+    unsigned char value = 0;
+    while(j < bufSize)
+    {
+        value = buf[j];
+        switch (value)
+        {
+        case FLAG:
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_FLAG;
+            i+=2;
+            break;
+        case ESCAPE:
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_ESCAPE;
+            i+=2;
+            break;
+        default:
+            frame[i] = buf[j];
+            i++;
+            break;
+        }
+        j++;
+    }
+
+    // BCC2 Stuffing
+    switch (bcc2)
+    {
+    case FLAG:
+        frame[i] = ESCAPE;
+        frame[i+1] = ESCAPE_FLAG;
+        i+=2;
+        break;
+    case ESCAPE:
+        frame[i] = ESCAPE;
+        frame[i+1] = ESCAPE_ESCAPE;
+        i+=2;
+        break;
+    default:
+        frame[i] = bcc2;
+        i++;
+        break;
+    }
     
+    // End of frame
+    frame[i] = FLAG;
 }
 
 ////////////////////////////////////////////////
