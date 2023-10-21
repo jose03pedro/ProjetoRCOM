@@ -44,7 +44,7 @@ void stateMachine(unsigned char byte, State *state) {
             break;
 
         case C_RCV:
-            if (byte == (A_RS ^ C_DISC))
+            if (byte == BCC(A_RS, C_DISC))
                 *state = BCC1_OK;
             else if (byte == FLAG)
                 *state = FLAG_RCV;
@@ -84,7 +84,7 @@ void stateMachineTx(unsigned char byte, State *state) {
                 *state = START;
             break;
         case C_RCV:
-            if (byte == (A_RS ^ C_UA))
+            if (byte == BCC(A_RS, C_UA))
                 *state = BCC1_OK;
             else if (byte == FLAG)
                 *state = FLAG_RCV;
@@ -124,7 +124,7 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                 *state = START;
             break;
         case C_RCV:
-            if (byte == (A_SR ^ C_SET))
+            if (byte == BCC(A_SR, C_SET))
                 *state = BCC1_OK;
             else if (byte == FLAG)
                 *state = FLAG_RCV;
@@ -203,7 +203,7 @@ void stateMachineRx(unsigned char byte, State *state) {
                 *state = START;
             break;
         case C_RCV:
-            if (byte == (A_SR ^ C_SET))
+            if (byte == BCC(A_SR, C_SET))
                 *state = BCC1_OK;
             else if (byte == FLAG)
                 *state = FLAG_RCV;

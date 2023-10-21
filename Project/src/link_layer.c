@@ -44,7 +44,7 @@ int llopen(LinkLayer connectionParameters) {
         (void)signal(SIGALRM, alarmHandler);
 
         do {
-            transmitFrame(fd, A_SR, C_SET);
+            transmitFrame(fd, A_SR, C_SET); // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
 
@@ -85,7 +85,7 @@ int llopen(LinkLayer connectionParameters) {
             }
         } while (state != STOP_STATE);
 
-        transmitFrame(fd, A_RS, C_UA);
+        transmitFrame(fd, A_RS, C_UA); // send UA frame
     } else {
         return -1;
     }
@@ -337,7 +337,7 @@ int llclose(int showStatistics) {
         retransmissions_var--;
     }
 
-    transmitFrame(showStatistics, A_SR, C_UA);
+    transmitFrame(showStatistics, A_SR, C_UA); // send UA frame
     if(close(showStatistics) == -1) return -1;
     else return 1;
 }
