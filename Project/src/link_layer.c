@@ -82,7 +82,7 @@ int llopen(LinkLayer connectionParameters) {
     } else if (role == LlRx) {
         do {
             // printf("rbyte: %hhu\n", rByte);
-            size_t test = read(fd, &rByte, 1);
+            // size_t test = read(fd, &rByte, 1);
             // printf("read output: %d\n", test);
             switch (read(fd, &rByte, 1)) {
                 case 1:
@@ -251,6 +251,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
                                     rxFrame = 1;
                                 }
                                 STOP = TRUE;
+                                alarm(0);
                                 retransmissions_var = 0;
                             } else if (rByte_temp == C_REJ0 ||
                                        rByte_temp == C_REJ1) {
@@ -267,7 +268,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     }
 
     if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
-        llclose(fd);
+        // llclose(fd);
         return -1;
     } else {
         return i;  // trocar o return pois está errado
