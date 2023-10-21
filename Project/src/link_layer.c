@@ -181,7 +181,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     // Send frame
     while (retransmissions_var > 0)
     {
-        write(fd, frame, i+1); // i+1 = frame size (size of frame array)
+        write(fd, frame, i); // i = frame size
         alarm(timer);
         alarmEnabled = TRUE;
 
@@ -282,7 +282,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
         return -1;
     } else
     {
-        return 1; // trocar o return pois está errado
+        return i; // trocar o return pois está errado
     }
 }
 

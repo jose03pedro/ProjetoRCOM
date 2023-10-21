@@ -42,10 +42,7 @@
 #define C_I0 0x00
 #define C_I1 0x40
 
-
 #define BCC(a, c) (a ^ c)
-
-#define MAX_PAYLOAD_SIZE 256
 
 #define BUF_SIZE 256
 
