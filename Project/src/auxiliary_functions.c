@@ -2,6 +2,7 @@
 
 #include "../include/link_layer.h"
 
+unsigned char txFrame = 0;
 unsigned char rxFrame = 1;
 
 ////////////////////////////////////////////////

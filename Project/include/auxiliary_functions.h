@@ -39,14 +39,21 @@
 #define C_RR1 0x85
 #define C_REJ0 0x01
 #define C_REJ1 0x81
-#define C_NS(Ns) (Ns << 6)
+#define C_I0 0x00
+#define C_I1 0x40
+
 
 #define BCC(a, c) (a ^ c)
+
+#define MAX_PAYLOAD_SIZE 256
 
 #define BUF_SIZE 256
 
 #define TIMEOUT 3
 #define N_TRIES 3
+
+extern unsigned char txFrame;
+extern unsigned char rxFrame;
 
 typedef enum {
     START,
