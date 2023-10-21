@@ -8,7 +8,6 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 const char *serialPort;
 
-unsigned char txFrame = 0;
 
 
 void alarmHandler(int signal) {
@@ -167,9 +166,122 @@ int llwrite(const unsigned char *buf, int bufSize) {
         i++;
         break;
     }
-    
+
     // End of frame
     frame[i] = FLAG;
+
+    int retransmissions_var = retransmissions;
+
+    State state = START;
+    (void)signal(SIGALRM, alarmHandler);
+    unsigned char rByte_temp = 0;
+
+    // Send frame
+    while (retransmissions_var > 0)
+    {
+        write(fd, frame, i+1); // i+1 = frame size (size of frame array)
+        alarm(timer);
+        alarmEnabled = TRUE;
+
+        while (STOP == FALSE && alarmEnabled == TRUE)
+        {
+            unsigned char rByte;
+            read(fd, &rByte, 1);
+            while (state != STOP_STATE)
+            {
+                switch (state)
+                {
+                case START:
+                    if (rByte == FLAG)
+                    {
+                        state = FLAG_RCV;
+                    } 
+                    break;
+                case FLAG_RCV:
+                    if (rByte == A_SR)
+                    {
+                        state = A_RCV;
+                    } else if (rByte != FLAG)
+                    {
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if (rByte == C_RR0 || rByte == C_RR1 || rByte == C_REJ0 || rByte == C_REJ1)
+                    {
+                        state = C_RCV;
+                        rByte_temp = rByte;
+                    } else if (rByte == FLAG)
+                    {
+                        state = FLAG_RCV;
+                    } else
+                    {
+                        state = START;
+                    }
+                    break;
+
+                case C_RCV:
+                    if (rByte == BCC(A_SR, C_I0) || rByte == BCC(A_SR, C_I1))
+                    {
+                        state = BCC1_OK;
+                    } else if (rByte == FLAG)
+                    {
+                        state = FLAG_RCV;
+                    } else
+                    {
+                        state = START;
+                    }
+                    break;
+                case BCC1_OK:
+                    if (rByte == FLAG)
+                    {
+                        state = STOP_STATE;
+                    } else
+                    {
+                        state = START;
+                    }
+                    break;
+                case STOP_STATE:
+                    if (rByte == FLAG)
+                    {
+                        if(rByte_temp == C_RR0 || rByte_temp == C_RR1)
+                        {
+                            if(rByte_temp == C_RR0)
+                            {
+                                txFrame = 1;
+                                rxFrame = 0;
+                            } else
+                            {
+                                txFrame = 0;
+                                rxFrame = 1;
+                            }
+                            STOP = TRUE;
+                            retransmissions_var = 0;
+                        } else if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1)
+                        {
+                            STOP = TRUE;
+                        }
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        retransmissions_var--;
+        
+
+    }
+    free(frame);
+
+    if(rByte_temp == C_REJ0 || rByte_temp == C_REJ1)
+    {
+        llclose(fd);
+        return -1;
+    } else
+    {
+        return 1; // trocar o return pois está errado
+    }
 }
 
 ////////////////////////////////////////////////

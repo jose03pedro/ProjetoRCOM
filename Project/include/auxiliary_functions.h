@@ -52,6 +52,9 @@
 #define TIMEOUT 3
 #define N_TRIES 3
 
+extern unsigned char txFrame;
+extern unsigned char rxFrame;
+
 typedef enum {
     START,
     FLAG_RCV,
