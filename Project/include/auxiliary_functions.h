@@ -74,6 +74,7 @@ int transmitFrame(unsigned char A, unsigned char C, int fd);
 
 int openConnection(const char *serialPort);
 
-void sendControlPackets(int fd, const char *filename, int fileSize, unsigned char sequence);
+void sendControlPackets(int fd, const char *filename, int fileSize,
+                        unsigned char sequence);
 
 #endif
