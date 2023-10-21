@@ -251,7 +251,6 @@ int llwrite(const unsigned char *buf, int bufSize) {
         }
         retransmissions_var--;
     }
-    free(frame);
 
     if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
         llclose(fd);
