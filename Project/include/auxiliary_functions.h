@@ -46,9 +46,6 @@
 
 #define BUF_SIZE 256
 
-#define TIMEOUT 3
-#define N_TRIES 3
-
 extern unsigned char txFrame;
 extern unsigned char rxFrame;
 
