@@ -38,6 +38,8 @@ int llopen(LinkLayer connectionParameters) {
     retransmissions = connectionParameters.nRetransmissions;
     serialPort = connectionParameters.serialPort;
 
+    int retransmissions_var = retransmissions;
+
     if (role == LlTx) {
         (void)signal(SIGALRM, alarmHandler);
 
@@ -62,8 +64,8 @@ int llopen(LinkLayer connectionParameters) {
                 }
             } while (alarmEnabled == FALSE && state != STOP_STATE);
 
-            retransmissions--;
-        } while (retransmissions != 0 && state != STOP_STATE);
+            retransmissions_var--;
+        } while (retransmissions_var != 0 && state != STOP_STATE);
 
         if (state != STOP_STATE) return -1;
     } else if (role == LlRx) {
@@ -309,8 +311,9 @@ int llclose(int showStatistics) {
     State state = START;
     unsigned char rByte;
     (void)signal(SIGALRM, alarmHandler);
+    int retransmissions_var = retransmissions;
 
-    while (retransmissions > 0 && state != STOP_STATE) {
+    while (retransmissions_var > 0 && state != STOP_STATE) {
         alarmCount++;
         alarm(timer);
         alarmEnabled = FALSE;
@@ -331,7 +334,7 @@ int llclose(int showStatistics) {
                     break;
             }
         }
-        retransmissions--;
+        retransmissions_var--;
     }
 
     transmitFrame(showStatistics, A_SR, C_UA);
