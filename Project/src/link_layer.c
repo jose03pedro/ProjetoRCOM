@@ -2,6 +2,7 @@
 
 #include "../include/link_layer.h"
 
+#include "../include/application_layer.h"
 #include "../include/auxiliary_functions.h"
 
 int alarmCount = 0;
@@ -22,12 +23,15 @@ volatile int STOP = FALSE;
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
+
 int llopen(LinkLayer connectionParameters) {
+    // printf("inside llopen\n");
     State state = START;
-    int fd;
-    if ((fd = openConnection(connectionParameters.serialPort)) < 0) {
+    // printf("fd_llopen: %d\n", fd);
+    if (fd < 0) {
         return -1;
     }
+    printf("fd_llopen2: %d\n", fd);
 
     LinkLayerRole role = connectionParameters.role;
 
@@ -37,11 +41,13 @@ int llopen(LinkLayer connectionParameters) {
     serialPort = connectionParameters.serialPort;
 
     int retransmissions_var = retransmissions;
-
+    // printf(" before role == LlTx\n");
     if (role == LlTx) {
+        printf("inside role\n");
         (void)signal(SIGALRM, alarmHandler);
 
         do {
+            // printf("inside do-while\n");
             transmitFrame(fd, A_SR, C_SET);  // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
@@ -49,7 +55,9 @@ int llopen(LinkLayer connectionParameters) {
             do {
                 switch (read(fd, &rByte, 1)) {
                     case 1:
+                        // printf(" before statemachine\n");
                         stateMachineTx(rByte, &state);
+                        // printf(" after statemachine\n");
                         if (state == STOP_STATE) {
                             printf("Connection established\n");
                         }
@@ -58,6 +66,8 @@ int llopen(LinkLayer connectionParameters) {
                         return -1;
                         break;
                     default:
+                        // printf("byte: %hhu\n", rByte);
+                        // printf("fd :%d\n", fd);
                         break;
                 }
             } while (alarmEnabled == FALSE && state != STOP_STATE);
@@ -68,6 +78,9 @@ int llopen(LinkLayer connectionParameters) {
         if (state != STOP_STATE) return -1;
     } else if (role == LlRx) {
         do {
+            // printf("rbyte: %hhu\n", rByte);
+            size_t test = read(fd, &rByte, 1);
+            // printf("read output: %d\n", test);
             switch (read(fd, &rByte, 1)) {
                 case 1:
                     stateMachineRx(rByte, &state);
@@ -79,6 +92,7 @@ int llopen(LinkLayer connectionParameters) {
                     return -1;
                     break;
                 default:
+                    // printf("rbyte: %d\n", rByte);
                     break;
             }
         } while (state != STOP_STATE);
@@ -95,8 +109,6 @@ int llopen(LinkLayer connectionParameters) {
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize) {
-    int fd = openConnection(serialPort);
-
     // Create frame
     unsigned char frame[MAX_PAYLOAD_SIZE] = {0};
     frame[0] = FLAG;
@@ -173,9 +185,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
     unsigned char rByte_temp = 0;
 
     // Send frame
-    while (retransmissions_var > 0)
-    {
-        write(fd, frame, i); // i = frame size
+    while (retransmissions_var > 0) {
+        write(fd, frame, i);  // i = frame size
 
         alarm(timer);
         alarmEnabled = TRUE;
@@ -255,9 +266,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
     if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
         llclose(fd);
         return -1;
-    } else
-    {
-        return i; // trocar o return pois está errado
+    } else {
+        return i;  // trocar o return pois está errado
     }
 }
 
@@ -269,7 +279,6 @@ int llread(unsigned char *packet) {
     unsigned char byte;
     int res = 0;
     State state = START;
-    int fd = openConnection(serialPort);
 
     do {
         if (read(fd, &byte, 1) > 0) {

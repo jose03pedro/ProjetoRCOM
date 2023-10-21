@@ -6,6 +6,8 @@
 #include "../include/auxiliary_functions.h"
 #include "../include/link_layer.h"
 
+int fd;
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename) {
     LinkLayer connectionParameters;
@@ -15,22 +17,26 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     strcpy(connectionParameters.serialPort, serialPort);
 
     int fd = openConnection(serialPort);
-
+    printf("fd1: %d\n", fd);
+    printf("openconnection fine\n");
     if (strcmp(role, "tx") == 0) {
         connectionParameters.role = LlTx;
-        fd = openConnection(serialPort);
+        printf("before bufsize inside tx\n");
+        // int fd = openConnection(serialPort);
+        printf("fd2: %d\n", fd);
+        printf("before bufsize after tx\n");
 
         if (llopen(connectionParameters) == -1) {
             perror("Error opening connection\n");
             exit(-1);
         }
-
+        printf("before fopen after llopen\n");
         FILE *file = fopen(filename, "rb");
         if (file == NULL) {
             perror("Error opening file\n");
             exit(-1);
         }
-
+        printf("before bufsize\n");
         const int bufSize = MAX_PAYLOAD_SIZE;
         unsigned char buffer[bufSize + 1];  // primeiro byte para dizer se deve
                                             // continuar(1) ou parar(0)
@@ -63,24 +69,24 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         // close connection
         llclose(fd);
-
     } else if (strcmp(role, "rx") == 0) {
         int writeResult = 0;
         int totalBytes = 0;
         connectionParameters.role = LlRx;
-        fd = openConnection(serialPort);
+        // fd = openConnection(serialPort);
+        printf("fd2: %d\n", fd);
 
         if (llopen(connectionParameters) == -1) {
             perror("Error opening connection\n");
             exit(-1);
         }
-
+        printf("fdll: %d\n", fd);
         FILE *file = fopen(filename, "wb");
         if (file == NULL) {
             perror("Error opening file\n");
             exit(-1);
         }
-
+        printf("fdn: %d\n", fd);
         const int bufSize = MAX_PAYLOAD_SIZE;
         unsigned char buffer[bufSize];
         int bytesRead = 1;

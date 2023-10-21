@@ -1,9 +1,11 @@
 #include "../include/auxiliary_functions.h"
 
+#include "../include/application_layer.h"
 #include "../include/link_layer.h"
 
 unsigned char txFrame = 0;
 unsigned char rxFrame = 1;
+// int fd = openConnection(connectionParameters.serialPort);
 
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
@@ -187,6 +189,8 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
 }
 
 void stateMachineRx(unsigned char byte, State *state) {
+    printf("State :%d\n", *state);
+    printf("Byte :%hhu\n", byte);
     switch (*state) {
         case START:
             if (byte == FLAG) *state = FLAG_RCV;
