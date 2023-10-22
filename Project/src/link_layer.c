@@ -1,7 +1,6 @@
 // Link layer protocol implementation
 
 #include "../include/link_layer.h"
-
 #include "../include/application_layer.h"
 
 unsigned char txFrame = 0;
@@ -27,8 +26,10 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
+
     // fd = openConnection(connectionParameters.serialPort);
     //  printf("inside llopen\n");
+
     State state = START;
     // printf("fd_llopen: %d\n", fd);
     if (fd < 0) {
@@ -554,6 +555,7 @@ void stateMachineRx(unsigned char byte, State *state) {
 }
 
 int openConnection(const char *serialPort) {
+
     struct termios oldtio, newtio;
 
     fd = open(serialPort, O_RDWR | O_NOCTTY);
