@@ -18,6 +18,7 @@ void alarmHandler(int signal) {
 int retransmissions = 0;
 int timer = 0;
 volatile int STOP = FALSE;
+LinkLayerRole role;
 
 int fd;
 
@@ -37,7 +38,7 @@ int llopen(LinkLayer connectionParameters) {
     }
     printf("fd_llopen2: %d\n", fd);
 
-    LinkLayerRole role = connectionParameters.role;
+    role = connectionParameters.role;
 
     unsigned char rByte;
     timer = connectionParameters.timeout;
@@ -300,38 +301,178 @@ int llclose(int showStatistics) {
     State state = START;
     unsigned char rByte;
     (void)signal(SIGALRM, alarmHandler);
-    int retransmissions_var = retransmissions;
+    alarmCount = 0;
+    alarmEnabled = FALSE;
 
-    while (retransmissions_var > 0 && state != STOP_STATE) {
-        alarmCount++;
-        alarm(timer);
-        alarmEnabled = FALSE;
-
-        while (state != STOP_STATE && alarmEnabled == FALSE) {
-            switch (read(showStatistics, &rByte, 1)) {
-                case 1:
-                    stateMachine(rByte, &state);
-                    if (state == STOP_STATE) {
-                        printf("Connection established\n");
-                    } else
-                        return 1;
-                    break;
-                case -1:
-                    return -1;
-                    break;
-                default:
-                    break;
+    if (role == LlTx) {
+        while (alarmCount < retransmissions && state != STOP_STATE) {
+            if (alarmEnabled == FALSE) {
+                transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                alarm(timer);
+                alarmEnabled = TRUE;
+                while (STOP == FALSE) {
+                    read(fd, &rByte, 1);
+                    if (state == START) {
+                        if (rByte == FLAG) {
+                            state = FLAG_RCV;
+                        } else {
+                            state = START;
+                        }
+                    } else if (state == FLAG_RCV) {
+                        if (rByte == A_RS) {
+                            state = A_RCV;
+                        } else if (rByte == FLAG) {
+                            state = FLAG_RCV;
+                        } else {
+                            state = START;
+                        }
+                    } else if (state == A_RCV) {
+                        if (rByte == C_DISC) {
+                            state = C_RCV;
+                        } else if (rByte == FLAG) {
+                            state = FLAG_RCV;
+                        } else {
+                            state = START;
+                        }
+                    } else if (state == C_RCV) {
+                        if (rByte == BCC(A_RS, C_DISC)) {
+                            state = BCC1_OK;
+                        } else if (rByte == FLAG) {
+                            state = FLAG_RCV;
+                        } else {
+                            state = START;
+                        }
+                    } else if (state == BCC1_OK) {
+                        if (rByte == FLAG) {
+                            state = STOP_STATE;
+                        } else {
+                            state = START;
+                        }
+                    } else if (state == STOP_STATE) {
+                        if (rByte == FLAG) {
+                            transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                            STOP = TRUE;
+                            alarm(0);
+                        } else {
+                            state = START;
+                        }
+                    }
+                }
             }
         }
-        retransmissions_var--;
-    }
+    } else if (role == LlRx) {
+        while (STOP == FALSE) {
+            read(fd, &rByte, 1);
+            if (state == START) {
+                if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == FLAG_RCV) {
+                if (rByte == A_RS) {
+                    state = A_RCV;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == A_RCV) {
+                if (rByte == C_DISC) {
+                    state = C_RCV;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == C_RCV) {
+                if (rByte == BCC(A_RS, C_DISC)) {
+                    state = BCC1_OK;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == BCC1_OK) {
+                if (rByte == FLAG) {
+                    state = STOP_STATE;
+                } else {
+                    state = START;
+                }
+            } else if (state == STOP_STATE) {
+                if (rByte == FLAG) {
+                    transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                    STOP = TRUE;
+                } else {
+                    state = START;
+                }
+            }
+        }
+        alarmCount = 0;
+        STOP = FALSE;
+        alarmEnabled = FALSE;
+        State state = START;
 
-    transmitFrame(showStatistics, A_SR, C_UA);  // send UA frame
-    if (close(showStatistics) == -1)
+        while (STOP == FALSE) {
+            read(fd, &rByte, 1);
+            if (state == START) {
+                if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == FLAG_RCV) {
+                if (rByte == A_RS) {
+                    state = A_RCV;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == A_RCV) {
+                if (rByte == C_UA) {
+                    state = C_RCV;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == C_RCV) {
+                if (rByte == BCC(A_RS, C_UA)) {
+                    state = BCC1_OK;
+                } else if (rByte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+            } else if (state == BCC1_OK) {
+                if (rByte == FLAG) {
+                    state = STOP_STATE;
+                } else {
+                    state = START;
+                }
+            } else if (state == STOP_STATE) {
+                if (rByte == FLAG) {
+                    transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                    STOP = TRUE;
+                } else {
+                    state = START;
+                }
+            }
+        }
+    }
+    /*
+    if(tcsetattr(fd, TCSANOW, &oldtio) == -1){
+        perror("tcsetattr");
+        exit(-1);
+    }
+    */
+    if (close(fd) == -1)
         return -1;
     else
         return 1;
 }
+
 
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
