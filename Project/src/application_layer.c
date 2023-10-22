@@ -2,6 +2,8 @@
 // Application layer protocol implementation
 
 #include "../include/application_layer.h"
+
+
 #include "../include/link_layer.h"
 
 
@@ -12,6 +14,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
     strcpy(connectionParameters.serialPort, serialPort);
+
+    fd = openConnection(connectionParameters.serialPort);
 
     printf("fd1: %d\n", fd);
     printf("openconnection fine\n");
