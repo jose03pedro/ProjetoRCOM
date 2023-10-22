@@ -3,10 +3,7 @@
 
 #include "../include/application_layer.h"
 
-#include "../include/auxiliary_functions.h"
 #include "../include/link_layer.h"
-
-int fd;
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename) {
@@ -15,8 +12,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
     strcpy(connectionParameters.serialPort, serialPort);
-
-    int fd = openConnection(serialPort);
+    fd = openConnection(connectionParameters.serialPort);
     printf("fd1: %d\n", fd);
     printf("openconnection fine\n");
     if (strcmp(role, "tx") == 0) {

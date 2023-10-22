@@ -3,7 +3,9 @@
 #include "../include/link_layer.h"
 
 #include "../include/application_layer.h"
-#include "../include/auxiliary_functions.h"
+
+unsigned char txFrame = 0;
+unsigned char rxFrame = 1;
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
@@ -16,16 +18,17 @@ void alarmHandler(int signal) {
 
 int retransmissions = 0;
 int timer = 0;
-unsigned char tx_frame = 0;
-unsigned char rx_frame = 1;
 volatile int STOP = FALSE;
+
+int fd;
 
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    // printf("inside llopen\n");
+    // fd = openConnection(connectionParameters.serialPort);
+    //  printf("inside llopen\n");
     State state = START;
     // printf("fd_llopen: %d\n", fd);
     if (fd < 0) {
@@ -79,7 +82,7 @@ int llopen(LinkLayer connectionParameters) {
     } else if (role == LlRx) {
         do {
             // printf("rbyte: %hhu\n", rByte);
-            size_t test = read(fd, &rByte, 1);
+            // size_t test = read(fd, &rByte, 1);
             // printf("read output: %d\n", test);
             switch (read(fd, &rByte, 1)) {
                 case 1:
@@ -248,6 +251,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
                                     rxFrame = 1;
                                 }
                                 STOP = TRUE;
+                                alarm(0);
                                 retransmissions_var = 0;
                             } else if (rByte_temp == C_REJ0 ||
                                        rByte_temp == C_REJ1) {
@@ -264,7 +268,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     }
 
     if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
-        llclose(fd);
+        // llclose(fd);
         return -1;
     } else {
         return i;  // trocar o return pois está errado
@@ -326,4 +330,259 @@ int llclose(int showStatistics) {
         return -1;
     else
         return 1;
+}
+
+////////////////////////////////////////////////
+// AUXILIARY FUNCTIONS
+////////////////////////////////////////////////
+
+int transmitFrame(unsigned char A, unsigned char C, int fd) {
+    unsigned char f[5];
+    f[0] = FLAG;
+    f[1] = A;
+    f[2] = C;
+    f[3] = BCC(A, C);
+    f[4] = FLAG;
+    unsigned int size = sizeof(f);
+
+    return write(fd, f, size);
+}
+
+void stateMachine(unsigned char byte, State *state) {
+    switch (*state) {
+        case START:
+            if (byte == FLAG) *state = FLAG_RCV;
+            break;
+
+        case FLAG_RCV:
+            if (byte == A_RS)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+
+        case A_RCV:
+            if (byte == C_DISC)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+
+        case C_RCV:
+            if (byte == BCC(A_RS, C_DISC))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+
+        default:
+            break;
+    }
+}
+
+void stateMachineTx(unsigned char byte, State *state) {
+    switch (*state) {
+        case START:
+            if (byte == FLAG) *state = FLAG_RCV;
+            break;
+        case FLAG_RCV:
+            if (byte == A_RS)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+        case A_RCV:
+            if (byte == C_UA)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case C_RCV:
+            if (byte == BCC(A_RS, C_UA))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+        default:
+            break;
+    }
+}
+
+int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
+                    int fd) {
+    int i = 0;
+    switch (*state) {
+        case START:
+            if (byte == FLAG) *state = FLAG_RCV;
+            break;
+        case FLAG_RCV:
+            if (byte == A_SR)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+        case A_RCV:
+            if (byte == C_SET)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case C_RCV:
+            if (byte == BCC(A_SR, C_SET))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+        case ESC_FOUND:
+            *state = READING_DATA;
+            if (byte == ESCAPE || byte == FLAG)
+                packet[i++] = byte;
+            else {
+                packet[i++] = ESCAPE;
+                packet[i++] = byte;
+            }
+            break;
+        case READING_DATA:
+            if (byte == ESCAPE)
+                *state = ESC_FOUND;
+            else if (byte == FLAG) {
+                unsigned char bcc2 = packet[i - 1];
+                i--;
+                packet[i] = '\0';
+                unsigned char acc = packet[0];
+
+                for (unsigned int j = 1; j < i; j++) acc ^= packet[j];
+
+                if (bcc2 == acc) {
+                    *state = STOP_STATE;
+                    if (rxFrame == 0) {
+                        transmitFrame(fd, A_RS, C_RR0);
+                    } else if (rxFrame == 1) {
+                        transmitFrame(fd, A_RS, C_RR1);
+                    }
+                    rxFrame = (rxFrame + 1) % 2;
+                    return i;
+                } else {
+                    printf("Error: retransmition\n");
+                    if (rxFrame == 0)
+                        transmitFrame(fd, A_RS, C_REJ0);
+                    else if (rxFrame == 1)
+                        transmitFrame(fd, A_RS, C_REJ1);
+                    return -1;
+                };
+
+            } else {
+                packet[i++] = byte;
+            }
+            break;
+        default:
+            break;
+    }
+
+    return 0;
+}
+
+void stateMachineRx(unsigned char byte, State *state) {
+    printf("State :%d\n", *state);
+    printf("Byte :%hhu\n", byte);
+    switch (*state) {
+        case START:
+            if (byte == FLAG) *state = FLAG_RCV;
+            break;
+        case FLAG_RCV:
+            if (byte == A_SR)
+                *state = A_RCV;
+            else if (byte != FLAG)
+                *state = START;
+            break;
+        case A_RCV:
+            if (byte == C_SET)
+                *state = C_RCV;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case C_RCV:
+            if (byte == BCC(A_SR, C_SET))
+                *state = BCC1_OK;
+            else if (byte == FLAG)
+                *state = FLAG_RCV;
+            else
+                *state = START;
+            break;
+        case BCC1_OK:
+            if (byte == FLAG)
+                *state = STOP_STATE;
+            else
+                *state = START;
+            break;
+        default:
+            break;
+    }
+}
+
+int openConnection(const char *serialPort) {
+    struct termios oldtio, newtio;
+
+    fd = open(serialPort, O_RDWR | O_NOCTTY);
+    if (fd < 0) {
+        perror(serialPort);
+        return -1;
+    }
+
+    if (tcgetattr(fd, &oldtio) == -1) {
+        perror("tcgetattr");
+        return -1;
+    }
+
+    bzero(&newtio, sizeof(newtio));
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_iflag = IGNPAR;
+    newtio.c_oflag = 0;
+
+    newtio.c_lflag = 0;
+
+    newtio.c_cc[VTIME] = 0;
+    newtio.c_cc[VMIN] = 0;
+
+    tcflush(fd, TCIOFLUSH);
+
+    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
+        perror("tcsetattr");
+        return -1;
+    }
+
+    return fd;
 }
