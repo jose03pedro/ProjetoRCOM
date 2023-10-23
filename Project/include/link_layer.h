@@ -13,6 +13,7 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+
 #include "application_layer.h"
 
 #define SET_SIZE 5
@@ -44,7 +45,7 @@
 
 #define BCC(a, c) (a ^ c)
 
-#define BUF_SIZE 256
+#define BUF_SIZE 1000
 
 typedef enum {
     LlTx,
@@ -79,7 +80,7 @@ void stateMachineRx(unsigned char byte, State *state);
 int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                     int fd);
 
-int transmitFrame(unsigned char A, unsigned char C, int fd);
+int transmitFrame(unsigned char A, unsigned char C);
 
 int openConnection(const char *serialPort);
 

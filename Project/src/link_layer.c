@@ -1,6 +1,7 @@
 // Link layer protocol implementation
 
 #include "../include/link_layer.h"
+
 #include "../include/application_layer.h"
 
 unsigned char txFrame = 0;
@@ -8,6 +9,8 @@ unsigned char rxFrame = 1;
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
+
+int counter = 0;
 const char *serialPort;
 
 void alarmHandler(int signal) {
@@ -15,7 +18,7 @@ void alarmHandler(int signal) {
     alarmCount++;
 }
 
-int retransmissions = 0;
+int retransmissions;
 int timer = 0;
 volatile int STOP = FALSE;
 LinkLayerRole role;
@@ -27,87 +30,59 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-
-    // fd = openConnection(connectionParameters.serialPort);
-    //  printf("inside llopen\n");
-
-    State state = START;
-    // printf("fd_llopen: %d\n", fd);
+    fd = openConnection(
+        connectionParameters.serialPort);  // Abre a conexão serial
     if (fd < 0) {
         return -1;
     }
-    printf("fd_llopen2: %d\n", fd);
 
+    State state = START;
     role = connectionParameters.role;
-
-    unsigned char rByte;
     timer = connectionParameters.timeout;
     retransmissions = connectionParameters.nRetransmissions;
     serialPort = connectionParameters.serialPort;
 
     int retransmissions_var = retransmissions;
-    // printf(" before role == LlTx\n");
+    unsigned char rByte;
+
     if (role == LlTx) {
-        printf("inside role\n");
         (void)signal(SIGALRM, alarmHandler);
 
         do {
-            // printf("inside do-while\n");
-            transmitFrame(fd, A_SR, C_SET);  // send SET frame
+            transmitFrame(A_SR, C_SET);  // Envie o quadro SET
             alarm(timer);
             alarmEnabled = FALSE;
-
-            do {
-                switch (read(fd, &rByte, 1)) {
-                    case 1:
-                        // printf(" before statemachine\n");
-                        stateMachineTx(rByte, &state);
-                        // printf(" after statemachine\n");
-                        if (state == STOP_STATE) {
-                            printf("Connection established\n");
-                        }
-                        break;
-                    case -1:
-                        return -1;
-                        break;
-                    default:
-                        // printf("byte: %hhu\n", rByte);
-                        // printf("fd :%d\n", fd);
-                        break;
+            printf("fist1\n");
+            while (state != STOP_STATE) {
+                if (read(fd, &rByte, 1) > 0) {
+                    stateMachineTx(rByte, &state);
                 }
-            } while (alarmEnabled == FALSE && state != STOP_STATE);
+            }
 
+            if (state == STOP_STATE) {
+                printf("Connection established\n");
+            } else {
+                return -1;
+            }
             retransmissions_var--;
-        } while (retransmissions_var != 0 && state != STOP_STATE);
+        } while (retransmissions_var > 0);
 
-        if (state != STOP_STATE) return -1;
+        if (state != STOP_STATE) {
+            return -1;
+        }
     } else if (role == LlRx) {
         do {
-            // printf("rbyte: %hhu\n", rByte);
-            // size_t test = read(fd, &rByte, 1);
-            // printf("read output: %d\n", test);
-            switch (read(fd, &rByte, 1)) {
-                case 1:
-                    stateMachineRx(rByte, &state);
-                    if (state == STOP_STATE) {
-                        printf("Connection established\n");
-                    }
-                    break;
-                case -1:
-                    return -1;
-                    break;
-                default:
-                    // printf("rbyte: %d\n", rByte);
-                    break;
+            if (read(fd, &rByte, 1) > 0) {
+                stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
 
-        transmitFrame(fd, A_RS, C_UA);  // send UA frame
+        transmitFrame(A_RS, C_UA);  // Envie o quadro UA
     } else {
         return -1;
     }
 
-    return 1;
+    return fd;
 }
 
 ////////////////////////////////////////////////
@@ -184,7 +159,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     frame[i] = FLAG;
 
     int retransmissions_var = retransmissions;
-
+    //printf("retran %d\n", retransmissions_var);
     State state = START;
     (void)signal(SIGALRM, alarmHandler);
     unsigned char rByte_temp = 0;
@@ -307,7 +282,7 @@ int llclose(int showStatistics) {
     if (role == LlTx) {
         while (alarmCount < retransmissions && state != STOP_STATE) {
             if (alarmEnabled == FALSE) {
-                transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                transmitFrame(A_SR, C_DISC);  // send DISC frame
                 alarm(timer);
                 alarmEnabled = TRUE;
                 while (STOP == FALSE) {
@@ -350,7 +325,7 @@ int llclose(int showStatistics) {
                         }
                     } else if (state == STOP_STATE) {
                         if (rByte == FLAG) {
-                            transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                            transmitFrame(A_SR, C_UA);  // send UA frame
                             STOP = TRUE;
                             alarm(0);
                         } else {
@@ -401,7 +376,7 @@ int llclose(int showStatistics) {
                 }
             } else if (state == STOP_STATE) {
                 if (rByte == FLAG) {
-                    transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                    transmitFrame(A_SR, C_DISC);  // send DISC frame
                     STOP = TRUE;
                 } else {
                     state = START;
@@ -453,7 +428,7 @@ int llclose(int showStatistics) {
                 }
             } else if (state == STOP_STATE) {
                 if (rByte == FLAG) {
-                    transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                    transmitFrame(A_SR, C_UA);  // send UA frame
                     STOP = TRUE;
                 } else {
                     state = START;
@@ -473,12 +448,11 @@ int llclose(int showStatistics) {
         return 1;
 }
 
-
 ////////////////////////////////////////////////
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
 
-int transmitFrame(unsigned char A, unsigned char C, int fd) {
+int transmitFrame(unsigned char A, unsigned char C) {
     unsigned char f[5];
     f[0] = FLAG;
     f[1] = A;
@@ -534,11 +508,13 @@ void stateMachine(unsigned char byte, State *state) {
 }
 
 void stateMachineTx(unsigned char byte, State *state) {
+    printf("ohyeeee %hhu\n", byte);
     switch (*state) {
         case START:
             if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
+            printf("2222222\n");
             if (byte == A_RS)
                 *state = A_RCV;
             else if (byte != FLAG)
@@ -553,6 +529,7 @@ void stateMachineTx(unsigned char byte, State *state) {
                 *state = START;
             break;
         case C_RCV:
+
             if (byte == BCC(A_RS, C_UA))
                 *state = BCC1_OK;
             else if (byte == FLAG)
@@ -606,6 +583,15 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
             else
                 *state = START;
             break;
+
+        case STOP_STATE:
+            if (byte == FLAG) {
+                transmitFrame(A_SR, C_UA);  // send UA frame
+                STOP = TRUE;
+                alarm(0);
+            } else {
+                *state = START;
+            }
         case ESC_FOUND:
             *state = READING_DATA;
             if (byte == ESCAPE || byte == FLAG)
@@ -629,18 +615,18 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
                     if (rxFrame == 0) {
-                        transmitFrame(fd, A_RS, C_RR0);
+                        transmitFrame(A_RS, C_RR0);
                     } else if (rxFrame == 1) {
-                        transmitFrame(fd, A_RS, C_RR1);
+                        transmitFrame(A_RS, C_RR1);
                     }
                     rxFrame = (rxFrame + 1) % 2;
                     return i;
                 } else {
                     printf("Error: retransmition\n");
                     if (rxFrame == 0)
-                        transmitFrame(fd, A_RS, C_REJ0);
+                        transmitFrame(A_RS, C_REJ0);
                     else if (rxFrame == 1)
-                        transmitFrame(fd, A_RS, C_REJ1);
+                        transmitFrame(A_RS, C_REJ1);
                     return -1;
                 };
 
@@ -663,9 +649,11 @@ void stateMachineRx(unsigned char byte, State *state) {
             if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
-            if (byte == A_SR)
+            printf("bytee %hhu\n", byte);
+            if (byte == A_SR) {
+                printf("NAAAAAAAA\n");
                 *state = A_RCV;
-            else if (byte != FLAG)
+            } else if (byte != FLAG)
                 *state = START;
             break;
         case A_RCV:
@@ -696,7 +684,6 @@ void stateMachineRx(unsigned char byte, State *state) {
 }
 
 int openConnection(const char *serialPort) {
-
     struct termios oldtio, newtio;
 
     fd = open(serialPort, O_RDWR | O_NOCTTY);
