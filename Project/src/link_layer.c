@@ -29,7 +29,7 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    // fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
+    fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
     // serial
     if (fd < 0) {
         return -1;
@@ -643,106 +643,6 @@ void stateMachineTx(unsigned char byte, State *state) {
         default:
             break;
     }
-}
-
-int stateMachinePck(unsigned char byte, State *state, unsigned char *packet) {
-    int i = 0;
-    printf("StateRead : %d\n", *state);
-    unsigned char c;
-    switch (*state) {
-        case START:
-            if (byte == FLAG) *state = FLAG_RCV;
-            break;
-        case FLAG_RCV:
-            if (byte == A_SR)
-                *state = A_RCV;
-            else if (byte != FLAG)
-                *state = START;
-            break;
-        case A_RCV:
-            if (byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 ||
-                byte == C_REJ1) {
-                *state = C_RCV;
-                c = byte;
-            } else if (byte == FLAG)
-                *state = FLAG_RCV;
-            else if (byte == C_DISC) {
-                transmitFrame(A_RS, C_DISC);
-                return 0;
-            } else
-                *state = START;
-            break;
-        case C_RCV:
-            if (byte == BCC(A_SR, c))
-                *state = BCC1_OK;
-            else if (byte == FLAG)
-                *state = FLAG_RCV;
-            else
-                *state = START;
-            break;
-        case BCC1_OK:
-            if (byte == FLAG)
-                *state = STOP_STATE;
-            else
-                *state = START;
-            break;
-
-        case STOP_STATE:
-            if (byte == FLAG) {
-                transmitFrame(A_SR, C_UA);  // send UA frame
-                STOP = TRUE;
-                alarm(0);
-            } else {
-                *state = START;
-            }
-        case ESC_FOUND:
-            *state = READING_DATA;
-            if (byte == ESCAPE || byte == FLAG)
-                packet[i++] = byte;
-            else {
-                packet[i++] = ESCAPE;
-                packet[i++] = byte;
-            }
-            break;
-        case READING_DATA:
-            if (byte == ESCAPE)
-                *state = ESC_FOUND;
-            else if (byte == FLAG) {
-                unsigned char bcc2 = packet[i - 1];
-                i--;
-                packet[i] = '\0';
-                unsigned char acc = packet[0];
-
-                for (unsigned int j = 1; j < i; j++) acc ^= packet[j];
-
-                if (bcc2 == acc) {
-                    *state = STOP_STATE;
-                    if (localFrame == 0) {
-                        transmitFrame(A_RS, C_RR0);
-                        localFrame = 1;
-                    } else if (localFrame == 1) {
-                        transmitFrame(A_RS, C_RR1);
-                        localFrame = 0;
-                    }
-                    return i;
-                } else {
-                    printf("Error: retransmition\n");
-                    if (localFrame == 0)
-                        transmitFrame(A_RS, C_REJ0);
-                    else if (localFrame == 1)
-                        transmitFrame(A_RS, C_REJ1);
-                    return -1;
-                };
-
-            } else {
-                packet[i++] = byte;
-            }
-            break;
-        default:
-            break;
-    }
-
-    return 0;
 }
 
 void stateMachineRx(unsigned char byte, State *state) {
