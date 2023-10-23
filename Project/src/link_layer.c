@@ -3,8 +3,8 @@
 #include "../include/link_layer.h"
 #include "../include/application_layer.h"
 
-unsigned char txFrame = 0;
-unsigned char rxFrame = 1;
+unsigned char localFrame = 0;
+
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
@@ -118,7 +118,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     unsigned char frame[MAX_PAYLOAD_SIZE] = {0};
     frame[0] = FLAG;
     frame[1] = A_SR;
-    if (txFrame == 0) {
+    if (localFrame == 0) {
         frame[2] = C_I0;
     } else {
         frame[2] = C_I1;
@@ -183,14 +183,13 @@ int llwrite(const unsigned char *buf, int bufSize) {
     // End of frame
     frame[i] = FLAG;
 
-    int retransmissions_var = retransmissions;
 
     State state = START;
     (void)signal(SIGALRM, alarmHandler);
     unsigned char rByte_temp = 0;
 
     // Send frame
-    while (retransmissions_var > 0) {
+    while (alarmCount < retransmissions && state != STOP_STATE) {
         write(fd, frame, i);  // i = frame size
 
         alarm(timer);
@@ -226,8 +225,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         break;
 
                     case C_RCV:
-                        if (rByte == BCC(A_SR, C_I0) ||
-                            rByte == BCC(A_SR, C_I1)) {
+                        if (rByte == BCC(A_SR, rByte_temp)) {
                             state = BCC1_OK;
                         } else if (rByte == FLAG) {
                             state = FLAG_RCV;
@@ -243,38 +241,29 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         }
                         break;
                     case STOP_STATE:
-                        if (rByte == FLAG) {
-                            if (rByte_temp == C_RR0 || rByte_temp == C_RR1) {
-                                if (rByte_temp == C_RR0) {
-                                    txFrame = 1;
-                                    rxFrame = 0;
-                                } else {
-                                    txFrame = 0;
-                                    rxFrame = 1;
-                                }
-                                STOP = TRUE;
-                                alarm(0);
-                                retransmissions_var = 0;
-                            } else if (rByte_temp == C_REJ0 ||
-                                       rByte_temp == C_REJ1) {
-                                STOP = TRUE;
+                            STOP = TRUE;
+                            alarm(0);
+                            if((rByte_temp == C_REJ0 && localFrame == 1) || (rByte_temp == C_REJ1 && localFrame == 0)){
+                                STOP = FALSE;
+                                alarm(timer);
+                                alarmEnabled = TRUE;
                             }
-                        }
+                            else {
+                                if (localFrame == 0) {
+                                    localFrame = 1;
+                                } else if (localFrame == 1) {
+                                    localFrame = 0;
+                                }
+                            }
                         break;
                     default:
                         break;
                 }
             }
         }
-        retransmissions_var--;
     }
 
-    if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
-        // llclose(fd);
-        return -1;
-    } else {
-        return i;  // trocar o return pois está errado
-    }
+    return i;  // trocar o return pois está errado
 }
 
 ////////////////////////////////////////////////
@@ -686,18 +675,19 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
 
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
-                    if (rxFrame == 0) {
+                    if (localFrame == 0) {
                         transmitFrame(fd, A_RS, C_RR0);
-                    } else if (rxFrame == 1) {
+                        localFrame = 1;
+                    } else if (localFrame == 1) {
                         transmitFrame(fd, A_RS, C_RR1);
+                        localFrame = 0;
                     }
-                    rxFrame = (rxFrame + 1) % 2;
                     return i;
                 } else {
                     printf("Error: retransmition\n");
-                    if (rxFrame == 0)
+                    if (localFrame == 0)
                         transmitFrame(fd, A_RS, C_REJ0);
-                    else if (rxFrame == 1)
+                    else if (localFrame == 1)
                         transmitFrame(fd, A_RS, C_REJ1);
                     return -1;
                 };
