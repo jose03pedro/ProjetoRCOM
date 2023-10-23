@@ -163,16 +163,19 @@ int llwrite(const unsigned char *buf, int bufSize) {
     // Send frame
     while (alarmCount < retransmissions && state != STOP_STATE) {
         write(fd, frame, i);  // i = frame size
+        printf("Frame sent\n");
 
         alarm(timer);
         alarmEnabled = TRUE;
 
         while (STOP == FALSE && alarmEnabled == TRUE) {
+            printf("State_llwrite: %d\n", state);
             unsigned char rByte;
             read(fd, &rByte, 1);
             while (state != STOP_STATE) {
                 switch (state) {
                     case START:
+                        printf("rByte: %hhu\n", rByte);
                         if (rByte == FLAG) {
                             state = FLAG_RCV;
                         }
@@ -297,6 +300,7 @@ int llread(unsigned char *packet) {
 
                 case STOP_STATE:
                     if (byte == FLAG) {
+                        printf("sent frame\n");
                         transmitFrame(A_SR, C_UA);  // send UA frame
                         STOP = TRUE;
                         alarm(0);
@@ -324,19 +328,25 @@ int llread(unsigned char *packet) {
                         if (bcc2 == acc) {
                             state = STOP_STATE;
                             if (localFrame == 0) {
+                                printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_RR0);
                                 localFrame = 1;
                             } else if (localFrame == 1) {
+                                printf("localFrame = 1\n");
                                 transmitFrame(A_RS, C_RR1);
                                 localFrame = 0;
                             }
                             return res;
                         } else {
                             printf("Error: retransmition\n");
-                            if (localFrame == 0)
+                            if (localFrame == 0){
+                                printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_REJ0);
-                            else if (localFrame == 1)
+                            }
+                            else if (localFrame == 1){
                                 transmitFrame(A_RS, C_REJ1);
+                                printf("localFrame = 1\n");
+                            }
                             return -1;
                         };
 
@@ -712,7 +722,7 @@ int openConnection(const char *serialPort) {
 
     newtio.c_lflag = 0;
 
-    newtio.c_cc[VTIME] = 0;
+    newtio.c_cc[VTIME] = 1;
     newtio.c_cc[VMIN] = 0;
 
     tcflush(fd, TCIOFLUSH);
