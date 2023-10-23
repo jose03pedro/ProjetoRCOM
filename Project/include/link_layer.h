@@ -79,8 +79,6 @@ void stateMachineTx(unsigned char byte, State *state);
 
 void stateMachineRx(unsigned char byte, State *state);
 
-// int stateMachinePck(unsigned char byte, State *state, unsigned char *packet);
-
 int transmitFrame(unsigned char A, unsigned char C);
 
 int openConnection(const char *serialPort);

@@ -82,6 +82,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             exit(-1);
         }
         llclose(1);
+        printf("Connection closed\n"); 
     } else if (strcmp(role, "rx") == 0) {
         connectionParameters.role = LlRx;
 
@@ -120,8 +121,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             free(packet);
         }
         fclose(file);
+
+        printf("File received\n");
         llclose(1);
-    } else {
+        printf("Connection closed\n");  
+    }
+    else {
         perror("Invalid role\n");
         exit(-1);
     }
