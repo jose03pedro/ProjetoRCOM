@@ -3,9 +3,7 @@
 
 #include "../include/application_layer.h"
 
-
 #include "../include/link_layer.h"
-
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename) {
@@ -92,7 +90,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int bytesRead = 1;
 
         while (bytesRead > 0) {
+            printf("bytesaa %d\n", bytesRead);
             bytesRead = llread(buffer);
+            printf("bytesaa2 %d\n", bytesRead);
             if (bytesRead < 0) {
                 perror("Error receiving from link layer\n");
                 exit(-1);

@@ -1,12 +1,15 @@
 // Link layer protocol implementation
 
 #include "../include/link_layer.h"
+
 #include "../include/application_layer.h"
 
 unsigned char localFrame = 0;
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
+
+int counter = 0;
 const char *serialPort;
 
 void alarmHandler(int signal) {
@@ -14,7 +17,7 @@ void alarmHandler(int signal) {
     alarmCount++;
 }
 
-int retransmissions = 0;
+int retransmissions;
 int timer = 0;
 volatile int STOP = FALSE;
 LinkLayerRole role;
@@ -26,28 +29,22 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-
-    // fd = openConnection(connectionParameters.serialPort);
-    //  printf("inside llopen\n");
-
-    State state = START;
-    // printf("fd_llopen: %d\n", fd);
+    fd = openConnection(
+        connectionParameters.serialPort);  // Abre a conexão serial
     if (fd < 0) {
         return -1;
     }
-    printf("fd_llopen2: %d\n", fd);
 
+    State state = START;
     role = connectionParameters.role;
-
-    unsigned char rByte;
     timer = connectionParameters.timeout;
     retransmissions = connectionParameters.nRetransmissions;
     serialPort = connectionParameters.serialPort;
 
     int retransmissions_var = retransmissions;
-    // printf(" before role == LlTx\n");
+    unsigned char rByte;
+
     if (role == LlTx) {
-        printf("inside role\n");
         (void)signal(SIGALRM, alarmHandler);
 
         do {
@@ -55,58 +52,36 @@ int llopen(LinkLayer connectionParameters) {
             transmitFrame(A_SR, C_SET);  // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
-
-            do {
-                switch (read(fd, &rByte, 1)) {
-                    case 1:
-                        // printf(" before statemachine\n");
-                        stateMachineTx(rByte, &state);
-                        // printf(" after statemachine\n");
-                        if (state == STOP_STATE) {
-                            printf("Connection established\n");
-                        }
-                        break;
-                    case -1:
-                        return -1;
-                        break;
-                    default:
-                        // printf("byte: %hhu\n", rByte);
-                        // printf("fd :%d\n", fd);
-                        break;
+            printf("fist1\n");
+            while (state != STOP_STATE) {
+                if (read(fd, &rByte, 1) > 0) {
+                    stateMachineTx(rByte, &state);
                 }
-            } while (alarmEnabled == FALSE && state != STOP_STATE);
+            }
 
+            if (state == STOP_STATE) {
+                printf("Connection established\n");
+            } else {
+                return -1;
+            }
             retransmissions_var--;
-        } while (retransmissions_var != 0 && state != STOP_STATE);
+        } while (retransmissions_var > 0);
 
-        if (state != STOP_STATE) return -1;
+        if (state != STOP_STATE) {
+            return -1;
+        }
     } else if (role == LlRx) {
         do {
-            // printf("rbyte: %hhu\n", rByte);
-            // size_t test = read(fd, &rByte, 1);
-            // printf("read output: %d\n", test);
-            switch (read(fd, &rByte, 1)) {
-                case 1:
-                    stateMachineRx(rByte, &state);
-                    if (state == STOP_STATE) {
-                        printf("Connection established\n");
-                    }
-                    break;
-                case -1:
-                    return -1;
-                    break;
-                default:
-                    // printf("rbyte: %d\n", rByte);
-                    break;
+            if (read(fd, &rByte, 1) > 0) {
+                stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
-
         transmitFrame(A_RS, C_UA);  // send UA frame
     } else {
         return -1;
     }
 
-    return 1;
+    return fd;
 }
 
 ////////////////////////////////////////////////
@@ -181,8 +156,6 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
     // End of frame
     frame[i] = FLAG;
-
-
     State state = START;
     (void)signal(SIGALRM, alarmHandler);
     unsigned char rByte_temp = 0;
@@ -240,20 +213,20 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         }
                         break;
                     case STOP_STATE:
-                            STOP = TRUE;
-                            alarm(0);
-                            if((rByte_temp == C_REJ0 && localFrame == 1) || (rByte_temp == C_REJ1 && localFrame == 0)){
-                                STOP = FALSE;
-                                alarm(timer);
-                                alarmEnabled = TRUE;
+                        STOP = TRUE;
+                        alarm(0);
+                        if ((rByte_temp == C_REJ0 && localFrame == 1) ||
+                            (rByte_temp == C_REJ1 && localFrame == 0)) {
+                            STOP = FALSE;
+                            alarm(timer);
+                            alarmEnabled = TRUE;
+                        } else {
+                            if (localFrame == 0) {
+                                localFrame = 1;
+                            } else if (localFrame == 1) {
+                                localFrame = 0;
                             }
-                            else {
-                                if (localFrame == 0) {
-                                    localFrame = 1;
-                                } else if (localFrame == 1) {
-                                    localFrame = 0;
-                                }
-                            }
+                        }
                         break;
                     default:
                         break;
@@ -291,10 +264,9 @@ int llclose(int showStatistics) {
     (void)signal(SIGALRM, alarmHandler);
     alarmCount = 0;
     alarmEnabled = FALSE;
-    if(role == LlTx){
-        while (alarmCount < retransmissions && state != STOP_STATE){
-            if (alarmEnabled == FALSE)
-            {
+    if (role == LlTx) {
+        while (alarmCount < retransmissions && state != STOP_STATE) {
+            if (alarmEnabled == FALSE) {
                 transmitFrame(A_SR, C_DISC);  // send DISC frame
                 alarm(timer);
                 alarmEnabled = TRUE;
@@ -304,8 +276,7 @@ int llclose(int showStatistics) {
                         case START:
                             if (rByte == FLAG) {
                                 state = FLAG_RCV;
-                            }
-                            else{
+                            } else {
                                 state = START;
                             }
                             break;
@@ -314,8 +285,7 @@ int llclose(int showStatistics) {
                                 state = A_RCV;
                             } else if (rByte == FLAG) {
                                 state = FLAG_RCV;
-                            }
-                            else{
+                            } else {
                                 state = START;
                             }
                             break;
@@ -324,8 +294,7 @@ int llclose(int showStatistics) {
                                 state = C_RCV;
                             } else if (rByte == FLAG) {
                                 state = FLAG_RCV;
-                            }
-                            else{
+                            } else {
                                 state = START;
                             }
                         case C_RCV:
@@ -333,8 +302,7 @@ int llclose(int showStatistics) {
                                 state = BCC1_OK;
                             } else if (rByte == FLAG) {
                                 state = FLAG_RCV;
-                            }
-                            else{
+                            } else {
                                 state = START;
                             }
                         case BCC1_OK:
@@ -348,8 +316,7 @@ int llclose(int showStatistics) {
                                 transmitFrame(A_SR, C_UA);  // send UA frame
                                 STOP = TRUE;
                                 alarm(0);
-                            }
-                            else{
+                            } else {
                                 state = START;
                             }
                             break;
@@ -359,16 +326,14 @@ int llclose(int showStatistics) {
                 }
             }
         }
-    }
-    else if(role == LlRx){
+    } else if (role == LlRx) {
         while (STOP == FALSE) {
             read(fd, &rByte, 1);
             switch (state) {
                 case START:
                     if (rByte == FLAG) {
                         state = FLAG_RCV;
-                    }
-                    else{
+                    } else {
                         state = START;
                     }
                     break;
@@ -377,8 +342,7 @@ int llclose(int showStatistics) {
                         state = A_RCV;
                     } else if (rByte == FLAG) {
                         state = FLAG_RCV;
-                    }
-                    else{
+                    } else {
                         state = START;
                     }
                     break;
@@ -387,8 +351,7 @@ int llclose(int showStatistics) {
                         state = C_RCV;
                     } else if (rByte == FLAG) {
                         state = FLAG_RCV;
-                    }
-                    else{
+                    } else {
                         state = START;
                     }
                 case C_RCV:
@@ -396,8 +359,7 @@ int llclose(int showStatistics) {
                         state = BCC1_OK;
                     } else if (rByte == FLAG) {
                         state = FLAG_RCV;
-                    }
-                    else{
+                    } else {
                         state = START;
                     }
                 case BCC1_OK:
@@ -410,8 +372,7 @@ int llclose(int showStatistics) {
                     if (rByte == FLAG) {
                         transmitFrame(A_SR, C_DISC);  // send DISC frame
                         STOP = TRUE;
-                    }
-                    else{
+                    } else {
                         state = START;
                     }
                     break;
@@ -424,87 +385,60 @@ int llclose(int showStatistics) {
         alarmEnabled = FALSE;
         State state = START;
 
-        while (STOP == FALSE)
-        {
+        while (STOP == FALSE) {
             read(fd, &rByte, 1);
-            switch (state)
-            {
-            case START:
-                if (rByte == FLAG)
-                {
-                    state = FLAG_RCV;
-                }
-                else
-                {
-                    state = START;
-                }
-                break;
-            case FLAG_RCV:
-                if (rByte == A_RS)
-                {
-                    state = A_RCV;
-                }
-                else if (rByte == FLAG)
-                {
-                    state = FLAG_RCV;
-                }
-                else
-                {
-                    state = START;
-                }
-                break;
-            case A_RCV:
-                if (rByte == C_UA)
-                {
-                    state = C_RCV;
-                }
-                else if (rByte == FLAG)
-                {
-                    state = FLAG_RCV;
-                }
-                else
-                {
-                    state = START;
-                }
-            case C_RCV:
-                if (rByte == BCC(A_RS, C_UA))
-                {
-                    state = BCC1_OK;
-                }
-                else if (rByte == FLAG)
-                {
-                    state = FLAG_RCV;
-                }
-                else
-                {
-                    state = START;
-                }
-            case BCC1_OK:
-                if (rByte == FLAG)
-                {
-                    state = STOP_STATE;
-                }
-                else
-                {
-                    state = START;
-                }
-            case STOP_STATE:
-                if (rByte == FLAG)
-                {
-                    transmitFrame(A_SR, C_UA);  // send UA frame
-                    STOP = TRUE;
-                }
-                else
-                {
-                    state = START;
-                }
-                break;
-            default:
-                break;
+            switch (state) {
+                case START:
+                    if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if (rByte == A_RS) {
+                        state = A_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if (rByte == C_UA) {
+                        state = C_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case C_RCV:
+                    if (rByte == BCC(A_RS, C_UA)) {
+                        state = BCC1_OK;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case BCC1_OK:
+                    if (rByte == FLAG) {
+                        state = STOP_STATE;
+                    } else {
+                        state = START;
+                    }
+                case STOP_STATE:
+                    if (rByte == FLAG) {
+                        transmitFrame(A_SR, C_UA);  // send UA frame
+                        STOP = TRUE;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                default:
+                    break;
             }
         }
     }
-        
 
     /*
     if(tcsetattr(fd, TCSANOW, &oldtio) == -1){
@@ -512,7 +446,6 @@ int llclose(int showStatistics) {
         exit(-1);
     }
     */
-    
 
     if (close(fd) == -1)
         return -1;
@@ -580,11 +513,13 @@ void stateMachine(unsigned char byte, State *state) {
 }
 
 void stateMachineTx(unsigned char byte, State *state) {
+    printf("ohyeeee %hhu\n", byte);
     switch (*state) {
         case START:
             if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
+            printf("2222222\n");
             if (byte == A_RS)
                 *state = A_RCV;
             else if (byte != FLAG)
@@ -599,6 +534,7 @@ void stateMachineTx(unsigned char byte, State *state) {
                 *state = START;
             break;
         case C_RCV:
+
             if (byte == BCC(A_RS, C_UA))
                 *state = BCC1_OK;
             else if (byte == FLAG)
@@ -652,6 +588,15 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
             else
                 *state = START;
             break;
+
+        case STOP_STATE:
+            if (byte == FLAG) {
+                transmitFrame(A_SR, C_UA);  // send UA frame
+                STOP = TRUE;
+                alarm(0);
+            } else {
+                *state = START;
+            }
         case ESC_FOUND:
             *state = READING_DATA;
             if (byte == ESCAPE || byte == FLAG)
@@ -710,9 +655,11 @@ void stateMachineRx(unsigned char byte, State *state) {
             if (byte == FLAG) *state = FLAG_RCV;
             break;
         case FLAG_RCV:
-            if (byte == A_SR)
+            printf("bytee %hhu\n", byte);
+            if (byte == A_SR) {
+                printf("NAAAAAAAA\n");
                 *state = A_RCV;
-            else if (byte != FLAG)
+            } else if (byte != FLAG)
                 *state = START;
             break;
         case A_RCV:
@@ -743,7 +690,6 @@ void stateMachineRx(unsigned char byte, State *state) {
 }
 
 int openConnection(const char *serialPort) {
-
     struct termios oldtio, newtio;
 
     fd = open(serialPort, O_RDWR | O_NOCTTY);

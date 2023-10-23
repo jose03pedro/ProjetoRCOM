@@ -13,6 +13,7 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+
 #include "application_layer.h"
 
 #define SET_SIZE 5
@@ -44,7 +45,7 @@
 
 #define BCC(a, c) (a ^ c)
 
-#define BUF_SIZE 256
+#define BUF_SIZE 1000
 
 typedef enum {
     LlTx,
