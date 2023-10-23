@@ -13,7 +13,7 @@ int counter = 0;
 const char *serialPort;
 
 void alarmHandler(int signal) {
-    alarmEnabled = FALSE;
+    alarmEnabled = TRUE;
     alarmCount++;
 }
 
@@ -29,9 +29,10 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
+    fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
     // serial
     if (fd < 0) {
+        printf("ret1\n");
         return -1;
     }
 
@@ -50,38 +51,101 @@ int llopen(LinkLayer connectionParameters) {
         do {
             // printf("inside do-while\n");
             transmitFrame(A_SR, C_SET);  // send SET frame
-            alarm(timer);
+            alarm(connectionParameters.timeout);
             alarmEnabled = FALSE;
-            while (state != STOP_STATE) {
+            while (alarmEnabled == FALSE && state != STOP_STATE) {
+                printf("before read? %d\n", fd);
+                printf("byte : %hhu\n", rByte);
                 if (read(fd, &rByte, 1) > 0) {
                     printf("State_llopen = %d\n", state);
-                    stateMachineTx(rByte, &state);
+                    printf("Bytellopen: %hhu\n", rByte);
+                    // stateMachineTx(rByte, &state);
+                    switch (rByte) {
+                        case FLAG:
+                            if (state != BCC1_OK)
+                                state = FLAG_RCV;
+                            else
+                                state = STOP_STATE;
+                            break;
+                        case C_REJ0:
+                            if (state == FLAG_RCV)
+                                state = A_RCV;
+                            else
+                                state = START;
+                            break;
+                        case C_UA:
+                            if (state == A_RCV)
+                                state = C_RCV;
+                            else
+                                state = START;
+                            break;
+                        case BCC(A_RS, C_UA):
+                            if (state == C_RCV)
+                                state = BCC1_OK;
+                            else
+                                state = START;
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
 
             if (state == STOP_STATE) {
                 printf("Connection established\n");
             } else {
+                printf("State :%d\n", state);
+                printf("ret2\n");
                 return -1;
             }
             retransmissions_var--;
-        } while (retransmissions_var > 0);
+        } while (retransmissions_var > 0 && state != STOP_STATE);
 
         if (state != STOP_STATE) {
+            printf("ret3\n");
             return -1;
         }
     } else if (role == LlRx) {
+        printf("Inside receiver role \n");
         do {
             if (read(fd, &rByte, 1) > 0) {
-                stateMachineRx(rByte, &state);
+                switch (rByte) {
+                    case FLAG:
+                        if (state == FLAG_RCV)
+                            state = A_RCV;
+                        else if (state == A_RCV)
+                            state = C_RCV;
+                        else
+                            state = START;
+
+                    case A_SR:
+                        if (state == FLAG_RCV)
+                            state = A_RCV;
+                        else if (state == A_RCV)
+                            state = C_RCV;
+                        else
+                            state = START;
+                    case C_I0:
+                        if (state == C_RCV)
+                            state = BCC1_OK;
+                        else
+                            state = START;
+                    default:
+                        state = START;
+                        break;
+                }
+
+                // stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
         transmitFrame(A_RS, C_UA);  // send UA frame
     } else {
+        printf("ret4\n");
         return -1;
     }
-
-    return fd;
+    alarm(0);
+    printf("ret5\n");
+    return 1;
 }
 
 ////////////////////////////////////////////////

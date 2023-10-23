@@ -75,13 +75,15 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         int controlPacketEndSize;
         unsigned char *controlPacketEnd;
-        controlPacketEnd =
-            buildControlPacket(3, fileSize, filename, &controlPacketEndSize);
+        controlPacketEnd = buildControlPacket(3, fileSize, filename, &controlPacketEndSize);
         if (llwrite(controlPacketEnd, controlPacketEndSize) == -1) {
             perror("Error sending control packet\n");
             exit(-1);
         }
-        llclose(1);
+        if(llclose(1) == -1){
+            perror("Error closing connection\n");
+            exit(-1);
+        }
         printf("Connection closed\n"); 
     } else if (strcmp(role, "rx") == 0) {
         connectionParameters.role = LlRx;
@@ -99,8 +101,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int pSize = -1;
         packet = (unsigned char *)malloc(MAX_PAYLOAD_SIZE + 1 + 9);
         unsigned long int fileSize = 0;
-        unsigned char *fileName =
-            processControlPacket(packet, pSize, &fileSize);
+        unsigned char *fileName = processControlPacket(packet, pSize, &fileSize);
         while (1) {
             while ((pSize = llread(packet)) < 0)
                 ;
@@ -190,21 +191,20 @@ unsigned char *buildControlPacket(unsigned int controlFieldValue,
 
 unsigned char *processControlPacket(unsigned char *packet, int readSize,
                                     unsigned long int *fileSize) {
-    unsigned char fileSizeInBytes = packet[2];
+    unsigned char fileSBytes = packet[2];
+    unsigned char size[fileSBytes];
 
-    unsigned char sizeAux[fileSizeInBytes];
+    memcpy(size, packet + 3, fileSBytes);
 
-    memcpy(sizeAux, packet + 3, fileSizeInBytes);
-
-    for (unsigned int i = 0; i < fileSizeInBytes; i++) {
-        *fileSize |= (sizeAux[fileSizeInBytes - i - 1] << (8 * i));
+    unsigned int shift = 0;
+    for (unsigned int i = 0; i < fileSBytes; i++) {
+        *fileSize |= (size[fileSBytes - i - 1] << (8 * (shift++)));
     }
 
-    unsigned char nameSizeInBytes = packet[3 + fileSizeInBytes + 1];
+    unsigned char nameSBytes = packet[3 + fileSBytes + 1];
+    unsigned char *nameAux = (unsigned char *)malloc(nameSBytes);
 
-    unsigned char *nameAux = (unsigned char *)malloc(nameSizeInBytes);
-
-    memcpy(nameAux, packet + 3 + fileSizeInBytes + 2, nameSizeInBytes);
+    memcpy(nameAux, packet + 3 + fileSBytes + 2, nameSBytes);
 
     return nameAux;
 }
