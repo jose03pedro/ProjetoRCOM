@@ -4,8 +4,7 @@
 
 #include "../include/application_layer.h"
 
-unsigned char txFrame = 0;
-unsigned char rxFrame = 1;
+unsigned char localFrame = 0;
 
 int alarmCount = 0;
 int alarmEnabled = FALSE;
@@ -49,7 +48,8 @@ int llopen(LinkLayer connectionParameters) {
         (void)signal(SIGALRM, alarmHandler);
 
         do {
-            transmitFrame(A_SR, C_SET);  // Envie o quadro SET
+            // printf("inside do-while\n");
+            transmitFrame(A_SR, C_SET);  // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
             printf("fist1\n");
@@ -76,8 +76,7 @@ int llopen(LinkLayer connectionParameters) {
                 stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
-
-        transmitFrame(A_RS, C_UA);  // Envie o quadro UA
+        transmitFrame(A_RS, C_UA);  // send UA frame
     } else {
         return -1;
     }
@@ -93,7 +92,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
     unsigned char frame[MAX_PAYLOAD_SIZE] = {0};
     frame[0] = FLAG;
     frame[1] = A_SR;
-    if (txFrame == 0) {
+    if (localFrame == 0) {
         frame[2] = C_I0;
     } else {
         frame[2] = C_I1;
@@ -157,15 +156,12 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
     // End of frame
     frame[i] = FLAG;
-
-    int retransmissions_var = retransmissions;
-    //printf("retran %d\n", retransmissions_var);
     State state = START;
     (void)signal(SIGALRM, alarmHandler);
     unsigned char rByte_temp = 0;
 
     // Send frame
-    while (retransmissions_var > 0) {
+    while (alarmCount < retransmissions && state != STOP_STATE) {
         write(fd, frame, i);  // i = frame size
 
         alarm(timer);
@@ -201,8 +197,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         break;
 
                     case C_RCV:
-                        if (rByte == BCC(A_SR, C_I0) ||
-                            rByte == BCC(A_SR, C_I1)) {
+                        if (rByte == BCC(A_SR, rByte_temp)) {
                             state = BCC1_OK;
                         } else if (rByte == FLAG) {
                             state = FLAG_RCV;
@@ -218,21 +213,18 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         }
                         break;
                     case STOP_STATE:
-                        if (rByte == FLAG) {
-                            if (rByte_temp == C_RR0 || rByte_temp == C_RR1) {
-                                if (rByte_temp == C_RR0) {
-                                    txFrame = 1;
-                                    rxFrame = 0;
-                                } else {
-                                    txFrame = 0;
-                                    rxFrame = 1;
-                                }
-                                STOP = TRUE;
-                                alarm(0);
-                                retransmissions_var = 0;
-                            } else if (rByte_temp == C_REJ0 ||
-                                       rByte_temp == C_REJ1) {
-                                STOP = TRUE;
+                        STOP = TRUE;
+                        alarm(0);
+                        if ((rByte_temp == C_REJ0 && localFrame == 1) ||
+                            (rByte_temp == C_REJ1 && localFrame == 0)) {
+                            STOP = FALSE;
+                            alarm(timer);
+                            alarmEnabled = TRUE;
+                        } else {
+                            if (localFrame == 0) {
+                                localFrame = 1;
+                            } else if (localFrame == 1) {
+                                localFrame = 0;
                             }
                         }
                         break;
@@ -241,15 +233,9 @@ int llwrite(const unsigned char *buf, int bufSize) {
                 }
             }
         }
-        retransmissions_var--;
     }
 
-    if (rByte_temp == C_REJ0 || rByte_temp == C_REJ1) {
-        // llclose(fd);
-        return -1;
-    } else {
-        return i;  // trocar o return pois está errado
-    }
+    return i;  // trocar o return pois está errado
 }
 
 ////////////////////////////////////////////////
@@ -278,7 +264,6 @@ int llclose(int showStatistics) {
     (void)signal(SIGALRM, alarmHandler);
     alarmCount = 0;
     alarmEnabled = FALSE;
-
     if (role == LlTx) {
         while (alarmCount < retransmissions && state != STOP_STATE) {
             if (alarmEnabled == FALSE) {
@@ -287,50 +272,56 @@ int llclose(int showStatistics) {
                 alarmEnabled = TRUE;
                 while (STOP == FALSE) {
                     read(fd, &rByte, 1);
-                    if (state == START) {
-                        if (rByte == FLAG) {
-                            state = FLAG_RCV;
-                        } else {
-                            state = START;
-                        }
-                    } else if (state == FLAG_RCV) {
-                        if (rByte == A_RS) {
-                            state = A_RCV;
-                        } else if (rByte == FLAG) {
-                            state = FLAG_RCV;
-                        } else {
-                            state = START;
-                        }
-                    } else if (state == A_RCV) {
-                        if (rByte == C_DISC) {
-                            state = C_RCV;
-                        } else if (rByte == FLAG) {
-                            state = FLAG_RCV;
-                        } else {
-                            state = START;
-                        }
-                    } else if (state == C_RCV) {
-                        if (rByte == BCC(A_RS, C_DISC)) {
-                            state = BCC1_OK;
-                        } else if (rByte == FLAG) {
-                            state = FLAG_RCV;
-                        } else {
-                            state = START;
-                        }
-                    } else if (state == BCC1_OK) {
-                        if (rByte == FLAG) {
-                            state = STOP_STATE;
-                        } else {
-                            state = START;
-                        }
-                    } else if (state == STOP_STATE) {
-                        if (rByte == FLAG) {
-                            transmitFrame(A_SR, C_UA);  // send UA frame
-                            STOP = TRUE;
-                            alarm(0);
-                        } else {
-                            state = START;
-                        }
+                    switch (state) {
+                        case START:
+                            if (rByte == FLAG) {
+                                state = FLAG_RCV;
+                            } else {
+                                state = START;
+                            }
+                            break;
+                        case FLAG_RCV:
+                            if (rByte == A_RS) {
+                                state = A_RCV;
+                            } else if (rByte == FLAG) {
+                                state = FLAG_RCV;
+                            } else {
+                                state = START;
+                            }
+                            break;
+                        case A_RCV:
+                            if (rByte == C_DISC) {
+                                state = C_RCV;
+                            } else if (rByte == FLAG) {
+                                state = FLAG_RCV;
+                            } else {
+                                state = START;
+                            }
+                        case C_RCV:
+                            if (rByte == BCC(A_RS, C_DISC)) {
+                                state = BCC1_OK;
+                            } else if (rByte == FLAG) {
+                                state = FLAG_RCV;
+                            } else {
+                                state = START;
+                            }
+                        case BCC1_OK:
+                            if (rByte == FLAG) {
+                                state = STOP_STATE;
+                            } else {
+                                state = START;
+                            }
+                        case STOP_STATE:
+                            if (rByte == FLAG) {
+                                transmitFrame(A_SR, C_UA);  // send UA frame
+                                STOP = TRUE;
+                                alarm(0);
+                            } else {
+                                state = START;
+                            }
+                            break;
+                        default:
+                            break;
                     }
                 }
             }
@@ -338,49 +329,55 @@ int llclose(int showStatistics) {
     } else if (role == LlRx) {
         while (STOP == FALSE) {
             read(fd, &rByte, 1);
-            if (state == START) {
-                if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == FLAG_RCV) {
-                if (rByte == A_RS) {
-                    state = A_RCV;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == A_RCV) {
-                if (rByte == C_DISC) {
-                    state = C_RCV;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == C_RCV) {
-                if (rByte == BCC(A_RS, C_DISC)) {
-                    state = BCC1_OK;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == BCC1_OK) {
-                if (rByte == FLAG) {
-                    state = STOP_STATE;
-                } else {
-                    state = START;
-                }
-            } else if (state == STOP_STATE) {
-                if (rByte == FLAG) {
-                    transmitFrame(A_SR, C_DISC);  // send DISC frame
-                    STOP = TRUE;
-                } else {
-                    state = START;
-                }
+            switch (state) {
+                case START:
+                    if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if (rByte == A_RS) {
+                        state = A_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if (rByte == C_DISC) {
+                        state = C_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case C_RCV:
+                    if (rByte == BCC(A_RS, C_DISC)) {
+                        state = BCC1_OK;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case BCC1_OK:
+                    if (rByte == FLAG) {
+                        state = STOP_STATE;
+                    } else {
+                        state = START;
+                    }
+                case STOP_STATE:
+                    if (rByte == FLAG) {
+                        transmitFrame(A_SR, C_DISC);  // send DISC frame
+                        STOP = TRUE;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                default:
+                    break;
             }
         }
         alarmCount = 0;
@@ -390,58 +387,66 @@ int llclose(int showStatistics) {
 
         while (STOP == FALSE) {
             read(fd, &rByte, 1);
-            if (state == START) {
-                if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == FLAG_RCV) {
-                if (rByte == A_RS) {
-                    state = A_RCV;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == A_RCV) {
-                if (rByte == C_UA) {
-                    state = C_RCV;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == C_RCV) {
-                if (rByte == BCC(A_RS, C_UA)) {
-                    state = BCC1_OK;
-                } else if (rByte == FLAG) {
-                    state = FLAG_RCV;
-                } else {
-                    state = START;
-                }
-            } else if (state == BCC1_OK) {
-                if (rByte == FLAG) {
-                    state = STOP_STATE;
-                } else {
-                    state = START;
-                }
-            } else if (state == STOP_STATE) {
-                if (rByte == FLAG) {
-                    transmitFrame(A_SR, C_UA);  // send UA frame
-                    STOP = TRUE;
-                } else {
-                    state = START;
-                }
+            switch (state) {
+                case START:
+                    if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if (rByte == A_RS) {
+                        state = A_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if (rByte == C_UA) {
+                        state = C_RCV;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case C_RCV:
+                    if (rByte == BCC(A_RS, C_UA)) {
+                        state = BCC1_OK;
+                    } else if (rByte == FLAG) {
+                        state = FLAG_RCV;
+                    } else {
+                        state = START;
+                    }
+                case BCC1_OK:
+                    if (rByte == FLAG) {
+                        state = STOP_STATE;
+                    } else {
+                        state = START;
+                    }
+                case STOP_STATE:
+                    if (rByte == FLAG) {
+                        transmitFrame(A_SR, C_UA);  // send UA frame
+                        STOP = TRUE;
+                    } else {
+                        state = START;
+                    }
+                    break;
+                default:
+                    break;
             }
         }
     }
+
     /*
     if(tcsetattr(fd, TCSANOW, &oldtio) == -1){
         perror("tcsetattr");
         exit(-1);
     }
     */
+
     if (close(fd) == -1)
         return -1;
     else
@@ -614,18 +619,19 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
 
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
-                    if (rxFrame == 0) {
+                    if (localFrame == 0) {
                         transmitFrame(A_RS, C_RR0);
-                    } else if (rxFrame == 1) {
+                        localFrame = 1;
+                    } else if (localFrame == 1) {
                         transmitFrame(A_RS, C_RR1);
+                        localFrame = 0;
                     }
-                    rxFrame = (rxFrame + 1) % 2;
                     return i;
                 } else {
                     printf("Error: retransmition\n");
-                    if (rxFrame == 0)
+                    if (localFrame == 0)
                         transmitFrame(A_RS, C_REJ0);
-                    else if (rxFrame == 1)
+                    else if (localFrame == 1)
                         transmitFrame(A_RS, C_REJ1);
                     return -1;
                 };
