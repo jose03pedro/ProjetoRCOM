@@ -5,7 +5,6 @@
 
 unsigned char localFrame = 0;
 
-
 int alarmCount = 0;
 int alarmEnabled = FALSE;
 const char *serialPort;
@@ -53,7 +52,7 @@ int llopen(LinkLayer connectionParameters) {
 
         do {
             // printf("inside do-while\n");
-            transmitFrame(fd, A_SR, C_SET);  // send SET frame
+            transmitFrame(A_SR, C_SET);  // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
 
@@ -102,7 +101,7 @@ int llopen(LinkLayer connectionParameters) {
             }
         } while (state != STOP_STATE);
 
-        transmitFrame(fd, A_RS, C_UA);  // send UA frame
+        transmitFrame(A_RS, C_UA);  // send UA frame
     } else {
         return -1;
     }
@@ -296,7 +295,7 @@ int llclose(int showStatistics) {
         while (alarmCount < retransmissions && state != STOP_STATE){
             if (alarmEnabled == FALSE)
             {
-                transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                transmitFrame(A_SR, C_DISC);  // send DISC frame
                 alarm(timer);
                 alarmEnabled = TRUE;
                 while (STOP == FALSE) {
@@ -346,7 +345,7 @@ int llclose(int showStatistics) {
                             }
                         case STOP_STATE:
                             if (rByte == FLAG) {
-                                transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                                transmitFrame(A_SR, C_UA);  // send UA frame
                                 STOP = TRUE;
                                 alarm(0);
                             }
@@ -409,7 +408,7 @@ int llclose(int showStatistics) {
                     }
                 case STOP_STATE:
                     if (rByte == FLAG) {
-                        transmitFrame(fd, A_SR, C_DISC);  // send DISC frame
+                        transmitFrame(A_SR, C_DISC);  // send DISC frame
                         STOP = TRUE;
                     }
                     else{
@@ -492,7 +491,7 @@ int llclose(int showStatistics) {
             case STOP_STATE:
                 if (rByte == FLAG)
                 {
-                    transmitFrame(fd, A_SR, C_UA);  // send UA frame
+                    transmitFrame(A_SR, C_UA);  // send UA frame
                     STOP = TRUE;
                 }
                 else
@@ -525,7 +524,7 @@ int llclose(int showStatistics) {
 // AUXILIARY FUNCTIONS
 ////////////////////////////////////////////////
 
-int transmitFrame(unsigned char A, unsigned char C, int fd) {
+int transmitFrame(unsigned char A, unsigned char C) {
     unsigned char f[5];
     f[0] = FLAG;
     f[1] = A;
@@ -676,19 +675,19 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                 if (bcc2 == acc) {
                     *state = STOP_STATE;
                     if (localFrame == 0) {
-                        transmitFrame(fd, A_RS, C_RR0);
+                        transmitFrame(A_RS, C_RR0);
                         localFrame = 1;
                     } else if (localFrame == 1) {
-                        transmitFrame(fd, A_RS, C_RR1);
+                        transmitFrame(A_RS, C_RR1);
                         localFrame = 0;
                     }
                     return i;
                 } else {
                     printf("Error: retransmition\n");
                     if (localFrame == 0)
-                        transmitFrame(fd, A_RS, C_REJ0);
+                        transmitFrame(A_RS, C_REJ0);
                     else if (localFrame == 1)
-                        transmitFrame(fd, A_RS, C_REJ1);
+                        transmitFrame(A_RS, C_REJ1);
                     return -1;
                 };
 

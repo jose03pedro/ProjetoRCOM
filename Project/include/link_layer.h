@@ -79,7 +79,7 @@ void stateMachineRx(unsigned char byte, State *state);
 int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                     int fd);
 
-int transmitFrame(unsigned char A, unsigned char C, int fd);
+int transmitFrame(unsigned char A, unsigned char C);
 
 int openConnection(const char *serialPort);
 
