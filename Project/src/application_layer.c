@@ -89,7 +89,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char buffer[bufSize];
         int bytesRead = 1;
 
-        while (bytesRead > 0) {
+        while (1) {
             printf("bytesaa %d\n", bytesRead);
             bytesRead = llread(buffer);
             printf("bytesaa2 %d\n", bytesRead);
