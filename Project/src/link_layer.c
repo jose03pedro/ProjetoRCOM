@@ -786,7 +786,7 @@ int openConnection(const char *serialPort) {
 
     newtio.c_lflag = 0;
 
-    newtio.c_cc[VTIME] = 1;
+    newtio.c_cc[VTIME] = 10;
     newtio.c_cc[VMIN] = 0;
 
     tcflush(fd, TCIOFLUSH);

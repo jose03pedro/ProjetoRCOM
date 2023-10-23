@@ -21,7 +21,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             exit(-1);
         }
         printf("before fopen after llopen\n");
-        FILE *file = fopen(filename, "rb");
+        FILE* file = fopen(filename, "rb");
         if (file == NULL) {
             perror("Error opening file\n");
             exit(-1);
@@ -92,7 +92,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             perror("Error opening connection\n");
             exit(-1);
         }
-        FILE *file = fopen((char *)filename, "wb+");
+        FILE* file = fopen((char *)filename, "wb+");
         if (file == NULL) {
             perror("Error opening file\n");
             exit(-1);
