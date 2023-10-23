@@ -4,8 +4,10 @@
 #ifndef _APPLICATION_LAYER_H_
 #define _APPLICATION_LAYER_H_
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define DATA_PAYLOAD 1
 
 // Application layer main function.
 // Arguments:
@@ -18,12 +20,11 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
-unsigned char* buildControlPacket(unsigned int controlFieldValue, const long int fileSize, const char * filename, int *cpSize);
+unsigned char *buildControlPacket(unsigned int controlFieldValue,
+                                  const long int fileSize, const char *filename,
+                                  int *cpSize);
 
-unsigned char* getData (FILE* file, long int filesize);
-
-unsigned char* buildDataPacket(unsigned char* data, int dataSize, int *pSize);
-
-unsigned char* processControlPacket(unsigned char *packet, int readSize, unsigned long int *fileSize);
+unsigned char *processControlPacket(unsigned char *packet, int readSize,
+                                    unsigned long int *fileSize);
 
 #endif  // _APPLICATION_LAYER_H_
