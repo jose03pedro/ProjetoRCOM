@@ -29,6 +29,8 @@
 #define STUFFING 0x20
 #define ESCAPE_FLAG (FLAG ^ STUFFING)
 #define ESCAPE_ESCAPE (ESCAPE ^ STUFFING)
+#define STUF_FLAG 0x5e
+#define STUF_ESCAPE 0x5d
 
 #define A_SR 0x03
 #define A_RS 0x01

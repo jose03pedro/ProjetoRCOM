@@ -244,7 +244,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
 int llread(unsigned char *packet) {
     unsigned char byte, cAux;
-    int res = 0;
+    unsigned int res = 0;
     State state = START;
 
     do {
@@ -263,8 +263,15 @@ int llread(unsigned char *packet) {
                 case A_RCV:
                     printf("byte_arcv %hhu\n", byte);
                     if (byte == C_I0 || byte == C_I1) {
-                        state = C_RCV;
-                        cAux = byte;
+                        if (byte == C_I0 && localFrame == 0) {
+                            localFrame++;
+                            state = C_RCV;
+                            cAux = BCC(byte, A_SR);
+                        } else if (byte == C_I1 && localFrame == 1) {
+                            localFrame--;
+                            state = C_RCV;
+                            cAux = BCC(byte, A_SR);
+                        }
                     } else if (byte == FLAG)
                         state = FLAG_RCV;
                     else if (byte == C_DISC) {
@@ -274,7 +281,7 @@ int llread(unsigned char *packet) {
                         state = START;
                     break;
                 case C_RCV:
-                    if (byte == BCC(A_SR, cAux))
+                    if (byte == cAux)
                         state = READING_DATA;
                     else if (byte == FLAG)
                         state = FLAG_RCV;
@@ -298,19 +305,17 @@ int llread(unsigned char *packet) {
                     }
                 case ESC_FOUND:
                     state = READING_DATA;
-                    if (byte == ESCAPE || byte == FLAG)
-                        packet[res++] = byte;
-                    else {
+                    if (byte == STUF_ESCAPE)
+                        packet[res++] = FLAG;
+
+                    else if (byte == STUF_FLAG)
                         packet[res++] = ESCAPE;
-                        packet[res++] = byte;
-                    }
                     break;
                 case READING_DATA:
                     if (byte == ESCAPE)
                         state = ESC_FOUND;
                     else if (byte == FLAG) {
-                        unsigned char bcc2 = packet[res - 1];
-                        res--;
+                        unsigned char bcc2 = packet[(res--) - 1];
                         packet[res] = '\0';
                         unsigned char acc = packet[0];
 
@@ -345,7 +350,7 @@ int llread(unsigned char *packet) {
         }
     } while (state != STOP_STATE);
 
-    return res;
+    return -1;
 }
 ////////////////////////////////////////////////
 // LLCLOSE
@@ -655,7 +660,6 @@ void stateMachineRx(unsigned char byte, State *state) {
         case FLAG_RCV:
             printf("bytee %hhu\n", byte);
             if (byte == A_SR) {
-                printf("NAAAAAAAA\n");
                 *state = A_RCV;
             } else if (byte != FLAG)
                 *state = START;
