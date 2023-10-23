@@ -29,8 +29,8 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    fd = openConnection(
-        connectionParameters.serialPort);  // Abre a conexão serial
+    // fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
+    // serial
     if (fd < 0) {
         return -1;
     }
@@ -52,9 +52,9 @@ int llopen(LinkLayer connectionParameters) {
             transmitFrame(A_SR, C_SET);  // send SET frame
             alarm(timer);
             alarmEnabled = FALSE;
-            printf("fist1\n");
             while (state != STOP_STATE) {
                 if (read(fd, &rByte, 1) > 0) {
+                    printf("State_llopen = %d\n", state);
                     stateMachineTx(rByte, &state);
                 }
             }
@@ -243,13 +243,105 @@ int llwrite(const unsigned char *buf, int bufSize) {
 ////////////////////////////////////////////////
 
 int llread(unsigned char *packet) {
-    unsigned char byte;
+    unsigned char byte, cAux;
     int res = 0;
     State state = START;
 
     do {
         if (read(fd, &byte, 1) > 0) {
-            res = stateMachinePck(byte, &state, packet, fd);
+            printf("State_llread: %d\n", state);
+            switch (state) {
+                case START:
+                    if (byte == FLAG) state = FLAG_RCV;
+                    break;
+                case FLAG_RCV:
+                    if (byte == A_SR)
+                        state = A_RCV;
+                    else if (byte != FLAG)
+                        state = START;
+                    break;
+                case A_RCV:
+                    printf("byte_arcv %hhu\n", byte);
+                    if (byte == C_I0 || byte == C_I1) {
+                        state = C_RCV;
+                        cAux = byte;
+                    } else if (byte == FLAG)
+                        state = FLAG_RCV;
+                    else if (byte == C_DISC) {
+                        transmitFrame(A_RS, C_DISC);
+                        return 0;
+                    } else
+                        state = START;
+                    break;
+                case C_RCV:
+                    if (byte == BCC(A_SR, cAux))
+                        state = READING_DATA;
+                    else if (byte == FLAG)
+                        state = FLAG_RCV;
+                    else
+                        state = START;
+                    break;
+                case BCC1_OK:
+                    if (byte == FLAG)
+                        state = STOP_STATE;
+                    else
+                        state = START;
+                    break;
+
+                case STOP_STATE:
+                    if (byte == FLAG) {
+                        transmitFrame(A_SR, C_UA);  // send UA frame
+                        STOP = TRUE;
+                        alarm(0);
+                    } else {
+                        state = START;
+                    }
+                case ESC_FOUND:
+                    state = READING_DATA;
+                    if (byte == ESCAPE || byte == FLAG)
+                        packet[res++] = byte;
+                    else {
+                        packet[res++] = ESCAPE;
+                        packet[res++] = byte;
+                    }
+                    break;
+                case READING_DATA:
+                    if (byte == ESCAPE)
+                        state = ESC_FOUND;
+                    else if (byte == FLAG) {
+                        unsigned char bcc2 = packet[res - 1];
+                        res--;
+                        packet[res] = '\0';
+                        unsigned char acc = packet[0];
+
+                        for (unsigned int j = 1; j < res; j++) acc ^= packet[j];
+
+                        if (bcc2 == acc) {
+                            state = STOP_STATE;
+                            if (localFrame == 0) {
+                                transmitFrame(A_RS, C_RR0);
+                                localFrame = 1;
+                            } else if (localFrame == 1) {
+                                transmitFrame(A_RS, C_RR1);
+                                localFrame = 0;
+                            }
+                            return res;
+                        } else {
+                            printf("Error: retransmition\n");
+                            if (localFrame == 0)
+                                transmitFrame(A_RS, C_REJ0);
+                            else if (localFrame == 1)
+                                transmitFrame(A_RS, C_REJ1);
+                            return -1;
+                        };
+
+                    } else {
+                        packet[res++] = byte;
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
     } while (state != STOP_STATE);
 
@@ -553,9 +645,10 @@ void stateMachineTx(unsigned char byte, State *state) {
     }
 }
 
-int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
-                    int fd) {
+int stateMachinePck(unsigned char byte, State *state, unsigned char *packet) {
     int i = 0;
+    printf("StateRead : %d\n", *state);
+    unsigned char c;
     switch (*state) {
         case START:
             if (byte == FLAG) *state = FLAG_RCV;
@@ -567,15 +660,20 @@ int stateMachinePck(unsigned char byte, State *state, unsigned char *packet,
                 *state = START;
             break;
         case A_RCV:
-            if (byte == C_SET)
+            if (byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 ||
+                byte == C_REJ1) {
                 *state = C_RCV;
-            else if (byte == FLAG)
+                c = byte;
+            } else if (byte == FLAG)
                 *state = FLAG_RCV;
-            else
+            else if (byte == C_DISC) {
+                transmitFrame(A_RS, C_DISC);
+                return 0;
+            } else
                 *state = START;
             break;
         case C_RCV:
-            if (byte == BCC(A_SR, C_SET))
+            if (byte == BCC(A_SR, c))
                 *state = BCC1_OK;
             else if (byte == FLAG)
                 *state = FLAG_RCV;
