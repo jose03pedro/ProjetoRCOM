@@ -81,6 +81,7 @@ void stateMachineRx(unsigned char byte, State *state);
 
 int transmitFrame(unsigned char A, unsigned char C);
 
+unsigned char readFrame();
 int openConnection(const char *serialPort);
 
 // SIZE of maximum acceptable payload.
