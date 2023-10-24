@@ -18,6 +18,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     printf("nRetransmissions: %d\n", connectionParameters.nRetransmissions);
     printf("timeout: %d\n", connectionParameters.timeout);
     llopen(connectionParameters);
+
     switch (connectionParameters.role) {
         case LlTx: {
             FILE *file = fopen(filename, "rb");
@@ -125,10 +126,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             llclose(1);
             printf("Connection closed\n");
         }
+
         default:
             perror("Invalid role\n");
             exit(-1);
             break;
+
     }
 }
 

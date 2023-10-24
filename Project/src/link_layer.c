@@ -15,9 +15,11 @@ const char *serialPort;
 void alarmHandler(int signal) {
     alarmEnabled = TRUE;
     alarmCount++;
+
+    printf("Alarm %d\n", alarmCount);
 }
 
-int retransmissions;
+int retransmissions = 0;
 int timer = 0;
 volatile int STOP = FALSE;
 LinkLayerRole role;
