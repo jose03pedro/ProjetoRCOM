@@ -29,8 +29,8 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
-    // serial
+    // fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
+    //  serial
     if (fd < 0) {
         printf("ret1\n");
         return -1;
@@ -48,14 +48,18 @@ int llopen(LinkLayer connectionParameters) {
     if (role == LlTx) {
         (void)signal(SIGALRM, alarmHandler);
 
-        do {
+        while (retransmissions_var > 0 && state != STOP_STATE) {
             // printf("inside do-while\n");
             transmitFrame(A_SR, C_SET);  // send SET frame
             alarm(connectionParameters.timeout);
             alarmEnabled = FALSE;
-            while (alarmEnabled == FALSE && state != STOP_STATE) {
+            do {
                 printf("before read? %d\n", fd);
-                printf("byte : %hhu\n", rByte);
+
+                // read(fd, &rByte, 1);
+                //  printf("readval = %zd\n", fdfdfd);
+                // printf("byte : %hhu\n", rByte);
+                // printf("readval = %zd\n", fdfdfd);
                 if (read(fd, &rByte, 1) > 0) {
                     printf("State_llopen = %d\n", state);
                     printf("Bytellopen: %hhu\n", rByte);
@@ -65,7 +69,8 @@ int llopen(LinkLayer connectionParameters) {
                             if (state != BCC1_OK)
                                 state = FLAG_RCV;
                             else
-                                state = STOP_STATE;
+                                printf("stop\n");
+                            state = STOP_STATE;
                             break;
                         case C_REJ0:
                             if (state == FLAG_RCV)
@@ -89,7 +94,8 @@ int llopen(LinkLayer connectionParameters) {
                             break;
                     }
                 }
-            }
+
+            } while (alarmEnabled == FALSE && state != STOP_STATE);
 
             if (state == STOP_STATE) {
                 printf("Connection established\n");
@@ -99,7 +105,7 @@ int llopen(LinkLayer connectionParameters) {
                 return -1;
             }
             retransmissions_var--;
-        } while (retransmissions_var > 0 && state != STOP_STATE);
+        }
 
         if (state != STOP_STATE) {
             printf("ret3\n");
@@ -239,7 +245,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
             while (state != STOP_STATE) {
                 switch (state) {
                     case START:
-                        printf("rByte: %hhu\n", rByte);
+                        // printf("rByte: %hhu\n", rByte);
+                        // printf("aaa\n");
                         if (rByte == FLAG) {
                             state = FLAG_RCV;
                         }
@@ -403,11 +410,10 @@ int llread(unsigned char *packet) {
                             return res;
                         } else {
                             printf("Error: retransmition\n");
-                            if (localFrame == 0){
+                            if (localFrame == 0) {
                                 printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_REJ0);
-                            }
-                            else if (localFrame == 1){
+                            } else if (localFrame == 1) {
                                 transmitFrame(A_RS, C_REJ1);
                                 printf("localFrame = 1\n");
                             }
