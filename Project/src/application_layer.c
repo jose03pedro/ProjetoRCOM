@@ -1,4 +1,3 @@
-
 // Application layer protocol implementation
 
 #include "../include/application_layer.h"
@@ -110,18 +109,18 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 printf("Invalid packet\n");
                 break;
             }
-            free(packet);
-        }
-        fclose(file);
+            fclose(file);
 
-        printf("File received\n");
-        llclose(1);
-        printf("Connection closed\n");
-    }
-    default:
-        perror("Invalid role\n");
-        exit(-1);
-        break;
+            printf("File received\n");
+            llclose(1);
+            printf("Connection closed\n");
+        }
+
+        default:
+            perror("Invalid role\n");
+            exit(-1);
+            break;
+
     }
 }
 
