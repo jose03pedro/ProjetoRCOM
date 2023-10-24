@@ -4,10 +4,10 @@
 
 #include "../include/application_layer.h"
 
-unsigned char localFrame = 0;
+int localFrame = 0;
 
-int alarmCount = 0;
-int alarmEnabled = FALSE;
+volatile int alarmCount = 0;
+volatile int alarmEnabled = FALSE;
 
 int counter = 0;
 const char *serialPort;
@@ -54,15 +54,9 @@ int llopen(LinkLayer connectionParameters) {
         while (retransmissions_var > 0 && state != STOP_STATE) {
             // printf("inside do-while\n");
             transmitFrame(A_SR, C_SET);  // send SET frame
-            alarm(connectionParameters.timeout);
+            alarm(timer);
             alarmEnabled = FALSE;
-            do {
-                printf("before read? %d\n", fd);
-
-                // read(fd, &rByte, 1);
-                //  printf("readval = %zd\n", fdfdfd);
-                // printf("byte : %hhu\n", rByte);
-                // printf("readval = %zd\n", fdfdfd);
+            while (alarmEnabled == FALSE && state != STOP_STATE){
                 if (read(fd, &rByte, 1) > 0) {
                     printf("State_llopen = %d\n", state);
                     printf("Bytellopen: %hhu\n", rByte);
@@ -98,20 +92,18 @@ int llopen(LinkLayer connectionParameters) {
                     }
                 }
 
-            } while (alarmEnabled == FALSE && state != STOP_STATE);
+            }
 
             if (state == STOP_STATE) {
                 printf("Connection established\n");
             } else {
                 printf("State :%d\n", state);
-                printf("ret2\n");
                 return -1;
             }
             retransmissions_var--;
         }
 
         if (state != STOP_STATE) {
-            printf("ret3\n");
             return -1;
         }
     } else if (role == LlRx) {
@@ -150,11 +142,9 @@ int llopen(LinkLayer connectionParameters) {
         } while (state != STOP_STATE);
         transmitFrame(A_RS, C_UA);  // send UA frame
     } else {
-        printf("ret4\n");
         return -1;
     }
     alarm(0);
-    printf("ret5\n");
     return 1;
 }
 
@@ -162,13 +152,15 @@ int llopen(LinkLayer connectionParameters) {
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize) {
-    // Create frame
-    unsigned char frame[MAX_PAYLOAD_SIZE] = {0};
+    // Creating the frame to send
+    printf("LocalFrame: %d\n", localFrame);
+    int frameSize = bufSize + 6;
+    unsigned char *frame = (unsigned char *)malloc(bufSize + 6);
     frame[0] = FLAG;
     frame[1] = A_SR;
     if (localFrame == 0) {
         frame[2] = C_I0;
-    } else {
+    } else if(localFrame == 1){
         frame[2] = C_I1;
     }
     frame[3] = BCC(frame[1], frame[2]);
@@ -193,18 +185,17 @@ int llwrite(const unsigned char *buf, int bufSize) {
         value = buf[j];
         switch (value) {
             case FLAG:
-                frame[i] = ESCAPE;
-                frame[i + 1] = ESCAPE_FLAG;
-                i += 2;
+                frame = realloc(frame, ++frameSize);
+                frame[i++] = ESCAPE;
+                frame[i++] = ESCAPE_FLAG;
                 break;
             case ESCAPE:
-                frame[i] = ESCAPE;
-                frame[i + 1] = ESCAPE_ESCAPE;
-                i += 2;
+                frame = realloc(frame, ++frameSize);
+                frame[i++] = ESCAPE;
+                frame[i++] = ESCAPE_ESCAPE;
                 break;
             default:
-                frame[i] = buf[j];
-                i++;
+                frame[i++] = buf[j++];
                 break;
         }
         j++;
@@ -213,40 +204,41 @@ int llwrite(const unsigned char *buf, int bufSize) {
     // BCC2 Stuffing
     switch (bcc2) {
         case FLAG:
-            frame[i] = ESCAPE;
-            frame[i + 1] = ESCAPE_FLAG;
-            i += 2;
+            frame = realloc(frame, ++frameSize);
+            frame[i++] = ESCAPE;
+            frame[i++] = ESCAPE_FLAG;
+            frame[i++] = FLAG;
             break;
         case ESCAPE:
-            frame[i] = ESCAPE;
-            frame[i + 1] = ESCAPE_ESCAPE;
-            i += 2;
+            frame = realloc(frame, ++frameSize);
+            frame[i++] = ESCAPE;
+            frame[i++] = ESCAPE_ESCAPE;
+            frame[i++] = FLAG;
             break;
         default:
-            frame[i] = bcc2;
-            i++;
+            frame[i++] = bcc2;
+            frame[i++] = FLAG;
             break;
     }
 
-    // End of frame
-    frame[i] = FLAG;
-    State state = START;
-    (void)signal(SIGALRM, alarmHandler);
     unsigned char rByte_temp = 0;
 
+    int nRetransmissions = 0;
+    int accepted = 0;
+
     // Send frame
-    while (alarmCount < retransmissions && state != STOP_STATE) {
+    while ((nRetransmissions < retransmissions) && !accepted) {
+        alarm(0);
         write(fd, frame, i);  // i = frame size
         printf("Frame sent\n");
-
         alarm(timer);
-        alarmEnabled = TRUE;
+        alarmEnabled = FALSE;
+        State state = START;
 
-        while (STOP == FALSE && alarmEnabled == TRUE) {
+        while (alarmEnabled == FALSE) {
             printf("State_llwrite: %d\n", state);
             unsigned char rByte;
-            read(fd, &rByte, 1);
-            while (state != STOP_STATE) {
+            if(read(fd, &rByte, 1) > 0){
                 switch (state) {
                     case START:
                         // printf("rByte: %hhu\n", rByte);
@@ -264,7 +256,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         break;
                     case A_RCV:
                         if (rByte == C_RR0 || rByte == C_RR1 ||
-                            rByte == C_REJ0 || rByte == C_REJ1) {
+                            rByte == C_REJ0 || rByte == C_REJ1 || rByte == C_DISC) {
                             state = C_RCV;
                             rByte_temp = rByte;
                         } else if (rByte == FLAG) {
@@ -273,7 +265,6 @@ int llwrite(const unsigned char *buf, int bufSize) {
                             state = START;
                         }
                         break;
-
                     case C_RCV:
                         if (rByte == BCC(A_SR, rByte_temp)) {
                             state = BCC1_OK;
@@ -293,17 +284,10 @@ int llwrite(const unsigned char *buf, int bufSize) {
                     case STOP_STATE:
                         STOP = TRUE;
                         alarm(0);
-                        if ((rByte_temp == C_REJ0 && localFrame == 1) ||
-                            (rByte_temp == C_REJ1 && localFrame == 0)) {
-                            STOP = FALSE;
-                            alarm(timer);
-                            alarmEnabled = TRUE;
-                        } else {
-                            if (localFrame == 0) {
-                                localFrame = 1;
-                            } else if (localFrame == 1) {
-                                localFrame = 0;
-                            }
+                        if(rByte_temp == C_RR0 || rByte_temp == C_RR1){
+                            accepted = 1;
+                            if(rByte_temp == C_RR0) localFrame = 0;
+                            else if(rByte_temp == C_RR1) localFrame = 1;
                         }
                         break;
                     default:
@@ -311,9 +295,12 @@ int llwrite(const unsigned char *buf, int bufSize) {
                 }
             }
         }
+        nRetransmissions++;
     }
+    alarmCount = 0;
+    free(frame);
 
-    return i;  // trocar o return pois está errado
+    return accepted;  // trocar o return pois está errado
 }
 
 ////////////////////////////////////////////////
@@ -321,60 +308,60 @@ int llwrite(const unsigned char *buf, int bufSize) {
 ////////////////////////////////////////////////
 
 int llread(unsigned char *packet) {
-    unsigned char byte, cAux;
+    unsigned char rByte, cAux, acc, bcc2;
     unsigned int res = 0;
     State state = START;
 
-    do {
-        if (read(fd, &byte, 1) > 0) {
+    while(state != STOP_STATE) {
+        if (read(fd, &rByte, 1) > 0) {
             printf("State_llread: %d\n", state);
             switch (state) {
                 case START:
-                    if (byte == FLAG) state = FLAG_RCV;
+                    if (rByte == FLAG) state = FLAG_RCV;
                     break;
                 case FLAG_RCV:
-                    if (byte == A_SR)
+                    if (rByte == A_SR)
                         state = A_RCV;
-                    else if (byte != FLAG)
+                    else if (rByte != FLAG)
                         state = START;
                     break;
                 case A_RCV:
-                    printf("byte_arcv %hhu\n", byte);
-                    if (byte == C_I0 || byte == C_I1) {
-                        if (byte == C_I0 && localFrame == 0) {
-                            localFrame++;
+                    printf("rByte_arcv %hhu\n", rByte);
+                    if (rByte == C_I0 || rByte == C_I1) {
+                        if (rByte == C_I0 && localFrame == 0) {
+                            localFrame = 1;
                             state = C_RCV;
-                            cAux = BCC(byte, A_SR);
-                        } else if (byte == C_I1 && localFrame == 1) {
-                            localFrame--;
+                            cAux = BCC(rByte, A_SR);
+                        } else if (rByte == C_I1 && localFrame == 1) {
+                            localFrame = 0;
                             state = C_RCV;
-                            cAux = BCC(byte, A_SR);
+                            cAux = BCC(rByte, A_SR);
                         }
-                    } else if (byte == FLAG)
+                    } else if (rByte == FLAG)
                         state = FLAG_RCV;
-                    else if (byte == C_DISC) {
+                    else if (rByte == C_DISC) {
                         transmitFrame(A_RS, C_DISC);
                         return 0;
                     } else
                         state = START;
                     break;
                 case C_RCV:
-                    if (byte == cAux)
+                    if (rByte == cAux)
                         state = READING_DATA;
-                    else if (byte == FLAG)
+                    else if (rByte == FLAG)
                         state = FLAG_RCV;
                     else
                         state = START;
                     break;
                 case BCC1_OK:
-                    if (byte == FLAG)
+                    if (rByte == FLAG)
                         state = STOP_STATE;
                     else
                         state = START;
                     break;
-
-                case STOP_STATE:
-                    if (byte == FLAG) {
+/*
+case STOP_STATE:
+                    if (rByte == FLAG) {
                         printf("sent frame\n");
                         transmitFrame(A_SR, C_UA);  // send UA frame
                         STOP = TRUE;
@@ -382,21 +369,23 @@ int llread(unsigned char *packet) {
                     } else {
                         state = START;
                     }
+*/
+                
                 case ESC_FOUND:
                     state = READING_DATA;
-                    if (byte == STUF_ESCAPE)
+                    if (rByte == STUF_ESCAPE)
                         packet[res++] = FLAG;
 
-                    else if (byte == STUF_FLAG)
+                    else if (rByte == STUF_FLAG)
                         packet[res++] = ESCAPE;
                     break;
                 case READING_DATA:
-                    if (byte == ESCAPE)
+                    if (rByte == ESCAPE)
                         state = ESC_FOUND;
-                    else if (byte == FLAG) {
-                        unsigned char bcc2 = packet[(res--) - 1];
+                    else if (rByte == FLAG) {
+                        bcc2 = packet[(res--) - 1];
                         packet[res] = '\0';
-                        unsigned char acc = packet[0];
+                        acc = packet[0];
 
                         for (unsigned int j = 1; j < res; j++) acc ^= packet[j];
 
@@ -405,11 +394,9 @@ int llread(unsigned char *packet) {
                             if (localFrame == 0) {
                                 printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_RR0);
-                                localFrame = 1;
                             } else if (localFrame == 1) {
                                 printf("localFrame = 1\n");
                                 transmitFrame(A_RS, C_RR1);
-                                localFrame = 0;
                             }
                             return res;
                         } else {
@@ -425,14 +412,14 @@ int llread(unsigned char *packet) {
                         };
 
                     } else {
-                        packet[res++] = byte;
+                        packet[res++] = rByte;
                     }
                     break;
                 default:
                     break;
             }
         }
-    } while (state != STOP_STATE);
+    }
 
     return -1;
 }

@@ -61,6 +61,7 @@
     "macros.h": "c",
     "stdlib.h": "c",
     "types.h": "c",
-    "link_layer.h": "c"
+    "link_layer.h": "c",
+    "stat.h": "c"
   }
 }
