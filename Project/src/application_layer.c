@@ -11,22 +11,17 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.baudRate = baudRate;
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
+    connectionParameters.role = strcmp(role, "tx") ? LlRx : LlTx;
     strcpy(connectionParameters.serialPort, serialPort);
-    printf("a : %zd\n", connectionParameters.baudRate);
-    printf("b : %zd\n", connectionParameters.nRetransmissions);
-    printf("c : %zd\n", connectionParameters.timeout);
-    printf("d : %zd\n", connectionParameters.serialPort);
-    int fd = openConnection(connectionParameters.serialPort);
+    printf("role: %d\n", connectionParameters.role);
+    printf("serialPort: %s\n", connectionParameters.serialPort);
+    printf("baudRate: %d\n", connectionParameters.baudRate);
+    printf("nRetransmissions: %d\n", connectionParameters.nRetransmissions);
+    printf("timeout: %d\n", connectionParameters.timeout);
     llopen(connectionParameters);
-    if (strcmp(role, "tx") == 0) {
-        connectionParameters.role = LlTx;
-
-        if (llopen(connectionParameters) == -1) {
-            perror("Error opening connection\n");
-            exit(-1);
-        }
-        printf("before fopen after llopen\n");
-        FILE *file = fopen(filename, "rb");
+    switch (connectionParameters.role){
+    case LlTx: {
+        FILE* file = fopen(filename, "rb");
         if (file == NULL) {
             perror("Error opening file\n");
             exit(-1);
@@ -34,14 +29,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         printf("aaaaaafsfas\n");
         int pos = ftell(file);  // curr file position indicator to the startpos
         fseek(file, 0L, SEEK_END);  // offset 0 bytes, move file pointer to EOF
-        long int fileSize =
-            ftell(file) - pos;  // EOF - Startpos = size of the file
-        fseek(file, pos,
-              SEEK_SET);  // reposiciona o pointer para a posição original
+        long int fileSize = ftell(file) - pos;  // EOF - Startpos = size of the file
+        fseek(file, pos, SEEK_SET);  // reposiciona o pointer para a posição original
         int controlPacketSize;
         unsigned char *controlPacket;
-        controlPacket =
-            buildControlPacket(2, fileSize, filename, &controlPacketSize);
+        controlPacket = buildControlPacket(2, fileSize, filename, &controlPacketSize);
         printf("before llwrite\n");
         if (llwrite(controlPacket, controlPacketSize) < 0) {
             perror("Error sending control packet\n");
@@ -81,8 +73,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         int controlPacketEndSize;
         unsigned char *controlPacketEnd;
-        controlPacketEnd =
-            buildControlPacket(3, fileSize, filename, &controlPacketEndSize);
+        controlPacketEnd = buildControlPacket(3, fileSize, filename, &controlPacketEndSize);
         if (llwrite(controlPacketEnd, controlPacketEndSize) == -1) {
             perror("Error sending control packet\n");
             exit(-1);
@@ -92,28 +83,20 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             exit(-1);
         }
         printf("Connection closed\n");
-    } else if (strcmp(role, "rx") == 0) {
-        connectionParameters.role = LlRx;
-
-        if (llopen(connectionParameters) == -1) {
-            perror("Error opening connection\n");
-            exit(-1);
-        }
-        FILE *file = fopen((char *)filename, "wb+");
-        if (file == NULL) {
-            perror("Error opening file\n");
-            exit(-1);
-        }
-        unsigned char *packet;
-        int pSize = -1;
-        packet = (unsigned char *)malloc(MAX_PAYLOAD_SIZE + 1 + 9);
-        unsigned long int fileSize = 0;
-        unsigned char *fileName =
-            processControlPacket(packet, pSize, &fileSize);
+        break;
+    }
+        
+    case LlRx: {
+        FILE* file;
+    
         while (1) {
-            while ((pSize = llread(packet)) < 0)
-                ;
+            unsigned char *packet;
+            int pSize = -1;
+            packet = (unsigned char *)malloc(MAX_PAYLOAD_SIZE + 1 + 9);
+            while ((pSize = llread(packet)) < 0);
             if (packet[0] == 2) {
+                unsigned long int fileSize = 0;
+                unsigned char *fileName = processControlPacket(packet, pSize, &fileSize);
                 file = fopen((char *)fileName, "wb+");
             } else if (packet[0] == 1) {
                 unsigned char *buf = (unsigned char *)malloc(pSize);
@@ -134,9 +117,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         printf("File received\n");
         llclose(1);
         printf("Connection closed\n");
-    } else {
+    }
+    default:
         perror("Invalid role\n");
         exit(-1);
+        break;
     }
 }
 

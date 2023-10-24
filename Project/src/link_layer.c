@@ -15,9 +15,11 @@ const char *serialPort;
 void alarmHandler(int signal) {
     alarmEnabled = TRUE;
     alarmCount++;
+
+    printf("Alarm %d\n", alarmCount);
 }
 
-int retransmissions;
+int retransmissions = 0;
 int timer = 0;
 volatile int STOP = FALSE;
 LinkLayerRole role;
@@ -29,7 +31,8 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    // fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
+    printf("Inside llopen\n");
+    fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
     //  serial
     if (fd < 0) {
         printf("ret1\n");
@@ -140,7 +143,8 @@ int llopen(LinkLayer connectionParameters) {
                         state = START;
                         break;
                 }
-
+                printf("fimss");
+                state = STOP_STATE;
                 // stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
@@ -785,7 +789,7 @@ int openConnection(const char *serialPort) {
         return -1;
     }
 
-    bzero(&newtio, sizeof(newtio));
+    memset(&newtio, 0, sizeof(newtio));
     newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
