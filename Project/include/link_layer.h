@@ -73,6 +73,11 @@ typedef enum {
     ESC_FOUND,
 } State;
 
+void stateMachine(unsigned char byte, State *state);
+
+void stateMachineTx(unsigned char byte, State *state);
+
+void stateMachineRx(unsigned char byte, State *state);
 
 int transmitFrame(unsigned char A, unsigned char C);
 
