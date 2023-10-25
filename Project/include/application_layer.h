@@ -6,9 +6,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-#define DATA_PAYLOAD 1
+#include "link_layer.h"
+#define START 2
+#define END 3
+#define FILE_SIZE_CODE 2
+#define DATA_CODE 1
+#define MAX_PAYLOAD_SIZE 1000
+
+// #include "link_layer.h"
 
 // Application layer main function.
 // Arguments:
@@ -18,6 +24,7 @@
 //   nTries: Maximum number of frame retries.
 //   timeout: Frame timeout.
 //   filename: Name of the file to send / receive.
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
