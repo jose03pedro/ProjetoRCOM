@@ -24,8 +24,8 @@
 #define BAUDRATE 38400
 #define _POSIX_SOURCE 1  // POSIX compliant source
 
-#define FLAG 0x7E
-#define ESCAPE 0x7D
+#define FLAG 0x7e
+#define ESCAPE 0x7d
 #define STUFFING 0x20
 #define ESCAPE_FLAG (FLAG ^ STUFFING)
 #define ESCAPE_ESCAPE (ESCAPE ^ STUFFING)
@@ -63,7 +63,7 @@ typedef struct {
 } LinkLayer;
 
 typedef enum {
-    START,
+    START_STATE,
     FLAG_RCV,
     A_RCV,
     C_RCV,
