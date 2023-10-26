@@ -39,7 +39,6 @@ int llopen(LinkLayer connectionParameters) {
     retransmissions = connectionParameters.nRetransmissions;
     serialPort = connectionParameters.serialPort;
     baudRate = connectionParameters.baudRate;
-
     fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
     //  serial
     if (fd < 0) {
@@ -156,7 +155,6 @@ int llopen(LinkLayer connectionParameters) {
     return 1;
 }
 
-int frameCounter = 0;
 ////////////////////////////////////////////////
 // LLWRITE
 ////////////////////////////////////////////////
@@ -632,7 +630,6 @@ int llclose(int showStatistics) {
                         case STOP_STATE:
                             printf("Sending asdasd frame\n");
                             STOP = TRUE;
-                            close(fd);
                             break;
                         default:
                             break;
@@ -643,6 +640,7 @@ int llclose(int showStatistics) {
         default:
             break;
     }
+    close(fd);
     return 1;
 }
 /*
@@ -825,67 +823,4 @@ int openConnection(const char *serialPort) {
     }
 
     return fd;
-}
-
-unsigned char readFrame() {
-    State curr_state = START_STATE;
-    unsigned char byte_read;
-    unsigned char controlField = 0;
-
-    while (alarmEnabled == FALSE) {
-        unsigned char bytes_read = read(fd, &byte_read, 1);
-
-        if (bytes_read > 0) {
-            switch (curr_state) {
-                case START_STATE: {
-                    if (byte_read == FLAG) curr_state = FLAG_RCV;
-                    break;
-                }
-
-                case FLAG_RCV: {
-                    if (byte_read == A_SR)
-                        curr_state = A_RCV;
-                    else if (byte_read != FLAG)
-                        curr_state = START_STATE;
-                    break;
-                }
-
-                case A_RCV: {
-                    if (byte_read == FLAG)
-                        curr_state = FLAG_RCV;
-                    else if (byte_read == C_RR0 || byte_read == C_RR1 ||
-                             byte_read == C_REJ0 || byte_read == C_REJ1 ||
-                             byte_read == C_DISC) {
-                        curr_state = C_RCV;
-                        controlField = byte_read;
-                    } else
-                        curr_state = START_STATE;
-                    break;
-                }
-
-                case C_RCV: {
-                    if (byte_read == (A_SR ^ controlField))
-                        curr_state = BCC1_OK;
-                    else if (byte_read == FLAG)
-                        curr_state = FLAG_RCV;
-                    else
-                        curr_state = START_STATE;
-                    break;
-                }
-
-                case BCC1_OK: {
-                    if (byte_read == FLAG) {
-                        return controlField;
-                    } else
-                        curr_state = START_STATE;
-                    break;
-                }
-
-                default:
-                    break;
-            }
-        }
-    }
-
-    return 0;
 }
