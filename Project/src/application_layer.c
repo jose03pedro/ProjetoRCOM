@@ -16,10 +16,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     llopen(connectionParameters);
 
     LinkLayerRole connection_role = connectionParameters.role;
+    FILE *file = NULL;
 
     switch (connection_role) {
-        case LlTx: {
-            FILE *file = fopen(filename, "rb");
+        case LlTx:
+            file = fopen(filename, "rb");
             if (file == NULL) {
                 perror("Error in opening file\n");
                 exit(-1);
@@ -89,10 +90,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             printf("Connection closed\n");
             break;
-        }
 
-        case LlRx: {
-            FILE *file;
+        case LlRx:
             while (1) {
                 int pSize = -1;
                 unsigned char *packet =
@@ -159,9 +158,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             fclose(file);
 
             printf("File received\n");
-            llclose(1);
+            if(llclose(1) == -1) {
+                perror("Error closing connection\n");
+                exit(-1);
+            }
             printf("Connection closed\n");
-        }
+            break;
+        
         default:
             perror("Invalid role\n");
             exit(-1);

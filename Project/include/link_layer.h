@@ -21,7 +21,6 @@
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
-#define BAUDRATE 38400
 #define _POSIX_SOURCE 1  // POSIX compliant source
 
 #define FLAG 0x7e
