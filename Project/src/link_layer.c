@@ -21,8 +21,10 @@ void alarmHandler(int signal) {
 
 int retransmissions = 0;
 int timer = 0;
+int baudRate = 0;
 volatile int ALARM_STOP = FALSE;
 LinkLayerRole role;
+
 
 int fd;
 
@@ -31,18 +33,19 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
+    State state = START_STATE;
+    role = connectionParameters.role;
+    timer = connectionParameters.timeout;
+    retransmissions = connectionParameters.nRetransmissions;
+    serialPort = connectionParameters.serialPort;
+    baudRate = connectionParameters.baudRate;
+
     fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
     //  serial
     if (fd < 0) {
         printf("ret1\n");
         return -1;
     }
-
-    State state = START_STATE;
-    role = connectionParameters.role;
-    timer = connectionParameters.timeout;
-    retransmissions = connectionParameters.nRetransmissions;
-    serialPort = connectionParameters.serialPort;
 
     int retransmissions_var = retransmissions;
     unsigned char rByte;
@@ -441,7 +444,6 @@ int llread(unsigned char *packet) {
 int llclose(int showStatistics) {
     printf("Inside llclose\n");
     State state = START_STATE;
-    unsigned char rByte;
     int retranmissions_var = retransmissions;
     int STOP = FALSE;
     printf("retranmissions_var : %d\n", retranmissions_var);
@@ -463,6 +465,7 @@ int llclose(int showStatistics) {
                 
 
                 while (alarmEnabled == FALSE && STOP == FALSE) {
+                    unsigned char rByte;
                     printf("inside while\n");
                     if (read(fd, &rByte, 1) > 0) {
                         printf("rByte :%hhu\n", rByte);
@@ -510,15 +513,7 @@ int llclose(int showStatistics) {
                                     state = START_STATE;
                                 }
                                 break;
-                            case STOP_STATE:
-                                printf("Sending UA frame\n");
-                                transmitFrame(A_SR, C_UA);
-                                alarm(0);
-                                close(fd);
-                                STOP = TRUE;
-                                alarmEnabled = TRUE;
-                                retranmissions_var = 0;
-                                break;
+
                             default:
                                 break;
                         }
@@ -534,15 +529,11 @@ int llclose(int showStatistics) {
                 retranmissions_var--;
             }
 
-            if (state != STOP_STATE) {
-                perror("Error receiving DISC frame\n");
-                return -1;
-            }
-
             break;
 
         case LlRx:
             while (STOP == FALSE) {
+                unsigned char rByte;
                 if (read(fd, &rByte, 1) > 0) {
                     switch (state) {
                         case START_STATE:
@@ -596,6 +587,7 @@ int llclose(int showStatistics) {
             }
             STOP = FALSE;
             while (STOP == FALSE) {
+                unsigned char rByte;
                 if (read(fd, &rByte, 1) > 0) {
                     switch (state) {
                         case START_STATE:
@@ -816,7 +808,7 @@ int openConnection(const char *serialPort) {
     }
 
     memset(&newtio, 0, sizeof(newtio));
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = baudRate | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
