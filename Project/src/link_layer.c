@@ -25,6 +25,8 @@ volatile int ALARM_STOP = FALSE;
 const char *serialPort;
 LinkLayerRole role;
 
+struct termios oldtio, newtio;
+
 int fd;
 
 ////////////////////////////////////////////////
@@ -170,37 +172,46 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
         if (value == FLAG || value == ESCAPE) {
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = buf[j] ^ STUFFING;
+            frame[i] = ESCAPE;
+            frame[i+1] = buf[j] ^ STUFFING;
+            i += 2;
             j++;
         }
 
-        else if (j < bufSize)
-            frame[i++] = buf[j++];
+        else if (j < bufSize){
+            frame[i] = buf[j];
+            i++;
+            j++;
+        }
+            
     }
 
     // bcc2 stuffing
     switch (bcc2) {
         case FLAG:
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = ESCAPE_FLAG;
-            frame[i++] = FLAG;
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_FLAG;
+            frame[i+2] = FLAG;
+            i += 3;
             break;
         case ESCAPE:
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = ESCAPE_ESCAPE;
-            frame[i++] = FLAG;
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_ESCAPE;
+            frame[i+2] = FLAG;
+            i += 3;
             break;
         default:
-            frame[i++] = bcc2;
-            frame[i++] = FLAG;
+            frame[i] = bcc2;
+            frame[i+1] = FLAG;
+            i += 2;
             break;
     }
 
     int retransmissions_var = retransmissions;
     int accepted = 0;
+    unsigned char ctrlF = 0;
 
     while (!accepted && (retransmissions_var > 0)) {
         printf("Writing...\n");
@@ -210,7 +221,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
         alarmEnabled = FALSE;
         State state = START_STATE;
 
-        unsigned char rByte_temp = 0, ctrlF = 0;
+        unsigned char rByte_temp = 0;
+        ctrlF = 0;
         while (alarmEnabled == FALSE) {
             // unsigned char rByte;
             if (read(fd, &rByte_temp, 1) > 0) {
@@ -255,29 +267,26 @@ int llwrite(const unsigned char *buf, int bufSize) {
                             state = START_STATE;
                         }
                         break;
-                    case STOP_STATE:
-                        printf("STOP_STATE\n");
-                        ALARM_STOP = TRUE;
-                        alarm(0);
-                        if (rByte_temp == C_RR0 || rByte_temp == C_RR1) {
-                            accepted = 1;
-                            if (rByte_temp == C_RR0)
-                                localFrame = 0;
-                            else if (rByte_temp == C_RR1)
-                                localFrame = 1;
-                        }
-                        break;
                     default:
                         break;
                 }
             }
         }
+        if (ctrlF == C_RR0 || ctrlF == C_RR1) {
+            accepted = 1;
+            if (ctrlF == C_RR0)
+                localFrame = 0;
+            else if (ctrlF == C_RR1)
+                localFrame = 1;
+        }
         retransmissions_var--;
     }
     alarmCount = 0;
     free(frame);
-    if (accepted)
-        return 1;
+    if (accepted){
+        llclose(1);
+        return ctrlF;
+    }
     else {
         llclose(1);
         return -1;
@@ -764,7 +773,6 @@ void stateMachineRx(unsigned char byte, State *state) {
 }
 
 int openConnection(const char *serialPort) {
-    struct termios oldtio, newtio;
 
     fd = open(serialPort, O_RDWR | O_NOCTTY);
     if (fd < 0) {
