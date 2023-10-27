@@ -25,7 +25,6 @@ int baudRate = 0;
 volatile int ALARM_STOP = FALSE;
 LinkLayerRole role;
 
-
 int fd;
 
 ////////////////////////////////////////////////
@@ -460,7 +459,6 @@ int llclose(int showStatistics) {
                 }
 
                 alarm(timer);
-                
 
                 while (alarmEnabled == FALSE && STOP == FALSE) {
                     unsigned char rByte;
@@ -515,8 +513,7 @@ int llclose(int showStatistics) {
                             default:
                                 break;
                         }
-                    }
-                    else{
+                    } else {
                         printf("Sending UA frame123123123\n");
                         transmitFrame(A_SR, C_UA);
                         alarm(0);
@@ -806,7 +803,7 @@ int openConnection(const char *serialPort) {
     }
 
     memset(&newtio, 0, sizeof(newtio));
-    newtio.c_cflag = baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 

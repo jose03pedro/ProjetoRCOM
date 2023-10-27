@@ -48,6 +48,8 @@
 
 #define BUF_SIZE 1000
 
+#define BAUDRATE B9600
+
 typedef enum {
     LlTx,
     LlRx,
