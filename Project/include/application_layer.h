@@ -28,6 +28,12 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
+long int getFileSize(FILE *file);
+int sendControlPacket(unsigned char controlField, long int fileSize,
+                      const char *filename);
+int sendDataPacket(int dataSize, unsigned char *content);
+FILE *receiveFile(const char *filename);
+
 unsigned char *buildControlPacket(unsigned int controlFieldValue,
                                   const long int fileSize, const char *filename,
                                   int *cpSize);
