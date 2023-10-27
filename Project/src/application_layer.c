@@ -1,8 +1,4 @@
-// Application layer protocol implementation
-
 #include "../include/application_layer.h"
-
-// #include "../include/link_layer.h"
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename) {
@@ -13,11 +9,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.role = (strcmp(role, "tx") == 0) ? LlTx : LlRx;
     strcpy(connectionParameters.serialPort, serialPort);
 
-    // if (llopen(connectionParameters) == -1) {
-    //     perror("Error opening the connection\n");
-    //     exit(-1);
-    // }
     llopen(connectionParameters);
+
     LinkLayerRole connection_role = connectionParameters.role;
     FILE *file = NULL;
 
@@ -25,14 +18,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         case LlTx:
             file = fopen(filename, "rb");
             if (file == NULL) {
-                perror("Error opening file\n");
+                fprintf(stderr, "Error: Failed to open the file\n");
                 exit(-1);
             }
 
             long int fileSize = getFileSize(file);
 
             if (sendControlPacket(START, fileSize, filename) == -1) {
-                perror("Error sending control packet\n");
+                fprintf(stderr, "Error: Failed to send control packet\n");
                 exit(-1);
             }
 
@@ -45,7 +38,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                                    : fileSize;
 
                 if (sendDataPacket(dataSize, content) == -1) {
-                    perror("Error sending data packet\n");
+                    fprintf(stderr, "Error: Failed to send data packet\n");
                     exit(-1);
                 }
 
@@ -54,12 +47,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
 
             if (sendControlPacket(END, fileSize, filename) == -1) {
-                perror("Error writing end control packet\n");
+                fprintf(stderr, "Error: Failed to send end control packet\n");
                 exit(-1);
             }
 
             if (llclose(1) == -1) {
-                perror("Error closing connection\n");
+                fprintf(stderr, "Error: Failed to close the connection\n");
                 exit(-1);
             }
 
@@ -70,7 +63,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             file = receiveFile(filename);
 
             if (llclose(1) == -1) {
-                perror("Error closing connection\n");
+                fprintf(stderr, "Error: Failed to close the connection\n");
                 exit(-1);
             }
 
@@ -78,7 +71,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             break;
 
         default:
-            perror("Invalid role\n");
+            fprintf(stderr, "Error: Invalid role\n");
             exit(-1);
             break;
     }
@@ -132,7 +125,7 @@ FILE *receiveFile(const char *filename) {
         } else if (packet[0] == 3) {
             break;
         } else {
-            printf("Invalid packet\n");
+            fprintf(stderr, "Error: Invalid packet\n");
             break;
         }
         free(packet);
@@ -179,7 +172,7 @@ unsigned char *buildControlPacket(unsigned int controlField,
 
     offset += fileSizeLength;
 
-    // Add the filename field indicator (1) to the control packet
+    // Add the filename field indicator
     controlPacket[offset++] = 1;
 
     // Add the size of the filename field to the control packet
