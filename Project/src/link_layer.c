@@ -61,7 +61,7 @@ int llopen(LinkLayer connectionParameters) {
                             else
                                 state = STOP_STATE;
                             break;
-                        case C_REJ0:
+                        case A_RS:
                             if (state == FLAG_RCV)
                                 state = A_RCV;
                             else
@@ -114,7 +114,7 @@ int llopen(LinkLayer connectionParameters) {
                             state = C_RCV;
                         else
                             state = START_STATE;
-                    case C_I0:
+                    case BCC(A_SR, C_SET):
                         if (state == C_RCV)
                             state = BCC1_OK;
                         else
