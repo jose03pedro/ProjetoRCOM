@@ -48,8 +48,6 @@
 
 #define BUF_SIZE 1000
 
-#define BAUDRATE B38400
-
 typedef enum {
     LlTx,
     LlRx,
@@ -82,8 +80,9 @@ void stateMachineRx(unsigned char byte, State *state);
 
 int transmitFrame(unsigned char A, unsigned char C);
 
-unsigned char readFrame();
 int openConnection(const char *serialPort);
+
+void setGlobalVars(LinkLayer connectionParameters);
 
 // SIZE of maximum acceptable payload.
 // Maximum number of bytes that application layer should send to link layer

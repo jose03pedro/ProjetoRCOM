@@ -10,7 +10,6 @@ int alarmCount = 0;
 int alarmEnabled = FALSE;
 
 int counter = 0;
-const char *serialPort;
 
 void alarmHandler(int signal) {
     alarmEnabled = TRUE;
@@ -23,7 +22,10 @@ int retransmissions = 0;
 int timer = 0;
 int baudRate = 0;
 volatile int ALARM_STOP = FALSE;
+const char *serialPort;
 LinkLayerRole role;
+
+struct termios oldtio, newtio;
 
 int fd;
 
@@ -33,45 +35,33 @@ int fd;
 
 int llopen(LinkLayer connectionParameters) {
     State state = START_STATE;
-    role = connectionParameters.role;
-    timer = connectionParameters.timeout;
-    retransmissions = connectionParameters.nRetransmissions;
-    serialPort = connectionParameters.serialPort;
-    baudRate = connectionParameters.baudRate;
-    fd = openConnection(connectionParameters.serialPort);  // Abre a conexÃ£o
-    //  serial
+    setGlobalVars(connectionParameters);
+    fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
     if (fd < 0) {
-        printf("ret1\n");
-        return -1;
+        perror("Error opening connection\n");
+        exit(-1);
     }
 
     int retransmissions_var = retransmissions;
-    unsigned char rByte;
 
     if (role == LlTx) {
         (void)signal(SIGALRM, alarmHandler);
 
         while (retransmissions_var > 0 && state != STOP_STATE) {
-            // printf("inside do-while\n");
-            transmitFrame(A_SR, C_SET);  // send SET frame
+            transmitFrame(A_SR, C_SET);  // send SET frame (sent 1st)
             alarm(connectionParameters.timeout);
             alarmEnabled = FALSE;
             do {
-                printf("before read? %d\n", fd);
-
+                unsigned char rByte;
                 if (read(fd, &rByte, 1) > 0) {
-                    printf("State_llopen = %d\n", state);
-                    printf("Bytellopen: %hhu\n", rByte);
-                    // stateMachineTx(rByte, &state);
                     switch (rByte) {
                         case FLAG:
                             if (state != BCC1_OK)
                                 state = FLAG_RCV;
                             else
-                                printf("stop\n");
-                            state = STOP_STATE;
+                                state = STOP_STATE;
                             break;
-                        case C_REJ0:
+                        case A_RS:
                             if (state == FLAG_RCV)
                                 state = A_RCV;
                             else
@@ -96,23 +86,17 @@ int llopen(LinkLayer connectionParameters) {
 
             } while (alarmEnabled == FALSE && state != STOP_STATE);
 
-            if (state == STOP_STATE) {
-                printf("Connection established\n");
-            } else {
-                printf("State :%d\n", state);
-                printf("ret2\n");
-                return -1;
-            }
             retransmissions_var--;
         }
 
         if (state != STOP_STATE) {
-            printf("ret3\n");
+            perror("Error establishing connection\n");
             return -1;
         }
+
     } else if (role == LlRx) {
-        printf("Inside receiver role \n");
         do {
+            unsigned char rByte;
             if (read(fd, &rByte, 1) > 0) {
                 switch (rByte) {
                     case FLAG:
@@ -130,7 +114,7 @@ int llopen(LinkLayer connectionParameters) {
                             state = C_RCV;
                         else
                             state = START_STATE;
-                    case C_I0:
+                    case BCC(A_SR, C_SET):
                         if (state == C_RCV)
                             state = BCC1_OK;
                         else
@@ -139,18 +123,16 @@ int llopen(LinkLayer connectionParameters) {
                         state = START_STATE;
                         break;
                 }
-                printf("fimss");
                 state = STOP_STATE;
-                // stateMachineRx(rByte, &state);
             }
         } while (state != STOP_STATE);
-        transmitFrame(A_RS, C_UA);  // send UA frame
+        transmitFrame(A_RS, C_UA);  // send UA frame (sent 2nd)
     } else {
-        printf("ret4\n");
+        perror("Error: Invalid role\n");
         return -1;
     }
     alarm(0);
-    printf("ret5\n");
+    printf("Connection established\n");
     return 1;
 }
 
@@ -159,21 +141,15 @@ int llopen(LinkLayer connectionParameters) {
 ////////////////////////////////////////////////
 
 int llwrite(const unsigned char *buf, int bufSize) {
-    printf("LocalFrame: %d\n", localFrame);
-    int frameSize = bufSize + 6;
+    // printf("LocalFrame: %d\n", localFrame);
+    int frameSize = bufSize;
     unsigned char *frame = (unsigned char *)malloc(bufSize + 6);
     frame[0] = FLAG;
     frame[1] = A_SR;
-    if (localFrame == 0) {
-        frame[2] = C_I0;
-    } else if (localFrame == 1) {
-        frame[2] = C_I1;
-    }
+    frame[2] = (localFrame == 0) ? C_I0 : C_I1;
     frame[3] = BCC(frame[1], frame[2]);
 
     int bsize = bufSize;
-    // unsigned char bcc2 = 0;
-    // bcc2 = buf[0];
     int var = 0;
 
     memcpy(frame + 4, buf, bsize);
@@ -196,37 +172,46 @@ int llwrite(const unsigned char *buf, int bufSize) {
 
         if (value == FLAG || value == ESCAPE) {
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = buf[j] ^ 0x20;
+            frame[i] = ESCAPE;
+            frame[i+1] = buf[j] ^ STUFFING;
+            i += 2;
             j++;
         }
 
-        else if (j < bufSize)
-            frame[i++] = buf[j++];
+        else if (j < bufSize){
+            frame[i] = buf[j];
+            i++;
+            j++;
+        }
+            
     }
 
     // bcc2 stuffing
     switch (bcc2) {
         case FLAG:
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = ESCAPE_FLAG;
-            frame[i++] = FLAG;
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_FLAG;
+            frame[i+2] = FLAG;
+            i += 3;
             break;
         case ESCAPE:
             frame = realloc(frame, ++frameSize);
-            frame[i++] = ESCAPE;
-            frame[i++] = ESCAPE_ESCAPE;
-            frame[i++] = FLAG;
+            frame[i] = ESCAPE;
+            frame[i+1] = ESCAPE_ESCAPE;
+            frame[i+2] = FLAG;
+            i += 3;
             break;
         default:
-            frame[i++] = bcc2;
-            frame[i++] = FLAG;
+            frame[i] = bcc2;
+            frame[i+1] = FLAG;
+            i += 2;
             break;
     }
 
     int retransmissions_var = retransmissions;
     int accepted = 0;
+    unsigned char ctrlF = 0;
 
     while (!accepted && (retransmissions_var > 0)) {
         printf("Writing...\n");
@@ -236,8 +221,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
         alarmEnabled = FALSE;
         State state = START_STATE;
 
-        unsigned char rByte_temp = 0, ctrlF = 0;
-        printf("Retranmissions %d\n", retransmissions_var);
+        unsigned char rByte_temp = 0;
+        ctrlF = 0;
         while (alarmEnabled == FALSE) {
             // unsigned char rByte;
             if (read(fd, &rByte_temp, 1) > 0) {
@@ -282,28 +267,26 @@ int llwrite(const unsigned char *buf, int bufSize) {
                             state = START_STATE;
                         }
                         break;
-                    case STOP_STATE:
-                        ALARM_STOP = TRUE;
-                        alarm(0);
-                        if (rByte_temp == C_RR0 || rByte_temp == C_RR1) {
-                            accepted = 1;
-                            if (rByte_temp == C_RR0)
-                                localFrame = 0;
-                            else if (rByte_temp == C_RR1)
-                                localFrame = 1;
-                        }
-                        break;
                     default:
                         break;
                 }
             }
         }
+        if (ctrlF == C_RR0 || ctrlF == C_RR1) {
+            accepted = 1;
+            if (ctrlF == C_RR0)
+                localFrame = 0;
+            else if (ctrlF == C_RR1)
+                localFrame = 1;
+        }
         retransmissions_var--;
     }
     alarmCount = 0;
     free(frame);
-    if (accepted)
-        return 1;
+    if (accepted){
+        llclose(1);
+        return ctrlF;
+    }
     else {
         llclose(1);
         return -1;
@@ -320,6 +303,7 @@ int llread(unsigned char *packet) {
     State r_state = START_STATE;
 
     do {
+        // printf("LocalFrame: %d\n", localFrame);
         if (read(fd, &r_byte, 1) > 0) {
             // printf("State_llread: %d\n", r_state);
             switch (r_state) {
@@ -448,7 +432,6 @@ int llclose(int showStatistics) {
         case LlTx:
             (void)signal(SIGALRM, alarmHandler);
             alarm(0);
-            // int nTry = 0;
             alarmEnabled = FALSE;
             STOP = FALSE;
             while (retranmissions_var > 0) {
@@ -514,7 +497,6 @@ int llclose(int showStatistics) {
                                 break;
                         }
                     } else {
-                        printf("Sending UA frame123123123\n");
                         transmitFrame(A_SR, C_UA);
                         alarm(0);
                         alarmEnabled = TRUE;
@@ -572,7 +554,6 @@ int llclose(int showStatistics) {
                             break;
                         case STOP_STATE:
                             transmitFrame(A_RS, C_DISC);
-                            printf("Sending DISC frame\n");
                             STOP = TRUE;
                             break;
                         default:
@@ -625,7 +606,6 @@ int llclose(int showStatistics) {
                             }
                             break;
                         case STOP_STATE:
-                            printf("Sending asdasd frame\n");
                             STOP = TRUE;
                             break;
                         default:
@@ -789,7 +769,6 @@ void stateMachineRx(unsigned char byte, State *state) {
 }
 
 int openConnection(const char *serialPort) {
-    struct termios oldtio, newtio;
 
     fd = open(serialPort, O_RDWR | O_NOCTTY);
     if (fd < 0) {
@@ -803,7 +782,7 @@ int openConnection(const char *serialPort) {
     }
 
     memset(&newtio, 0, sizeof(newtio));
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = baudRate | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -820,4 +799,12 @@ int openConnection(const char *serialPort) {
     }
 
     return fd;
+}
+
+void setGlobalVars(LinkLayer connectionParameters) {
+    role = connectionParameters.role;
+    timer = connectionParameters.timeout;
+    retransmissions = connectionParameters.nRetransmissions;
+    serialPort = connectionParameters.serialPort;
+    baudRate = connectionParameters.baudRate;
 }

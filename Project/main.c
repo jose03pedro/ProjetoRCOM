@@ -6,7 +6,7 @@
 
 #include "application_layer.h"
 
-#define BAUDRATE B9600
+#define BAUDRATE 38400 // FUNCIONA MELHOR COM 38400 (COM 9600 NÃO DÁ PARA DAR RUN 2 VEZES SEGUIDAS)
 #define N_TRIES 3
 #define TIMEOUT 4
 
