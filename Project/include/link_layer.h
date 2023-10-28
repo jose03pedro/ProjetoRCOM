@@ -16,36 +16,47 @@
 
 #include "application_layer.h"
 
+// Frame sizes
 #define SET_SIZE 5
 #define UA_SIZE 5
 
-// Baudrate settings are defined in <asm/termbits.h>, which is
-// included by <termios.h>
+// Baudrate settings are defined in <asm/termbits.h>, which is included by
+// <termios.h>
 #define _POSIX_SOURCE 1  // POSIX compliant source
 
+// Frame delimiters and escape characters
 #define FLAG 0x7e
+
 #define ESCAPE 0x7d
+#define STUF_FLAG 0x5e
 #define STUFFING 0x20
+
 #define ESCAPE_FLAG (FLAG ^ STUFFING)
 #define ESCAPE_ESCAPE (ESCAPE ^ STUFFING)
 #define STUF_FLAG 0x5e
 #define STUF_ESCAPE 0x5d
 
+// Address Field
 #define A_SR 0x03
 #define A_RS 0x01
 
-#define C_DISC 0x0B
+// Control Field
 #define C_SET 0x03
 #define C_UA 0x07
 #define C_RR0 0x05
 #define C_RR1 0x85
 #define C_REJ0 0x01
 #define C_REJ1 0x81
+#define C_DISC 0x0B
+
+// Control Field Information Frames
 #define C_I0 0x00
 #define C_I1 0x40
 
+// BCC calculation
 #define BCC(a, c) (a ^ c)
 
+// Buffer size
 #define BUF_SIZE 1000
 
 typedef enum {
@@ -72,18 +83,6 @@ typedef enum {
     ESC_FOUND,
 } State;
 
-void stateMachine(unsigned char byte, State *state);
-
-void stateMachineTx(unsigned char byte, State *state);
-
-void stateMachineRx(unsigned char byte, State *state);
-
-int transmitFrame(unsigned char A, unsigned char C);
-
-int openConnection(const char *serialPort);
-
-void setGlobalVars(LinkLayer connectionParameters);
-
 // SIZE of maximum acceptable payload.
 // Maximum number of bytes that application layer should send to link layer
 #define MAX_PAYLOAD_SIZE 1000
@@ -108,5 +107,13 @@ int llread(unsigned char *packet);
 // if showStatistics == TRUE, link layer should print statistics in the console
 // on close. Return "1" on success or "-1" on error.
 int llclose(int showStatistics);
+
+// Auxiliary Functions
+
+int transmitFrame(unsigned char A, unsigned char C);
+
+int openConnection(const char *serialPort);
+
+void setGlobalVars(LinkLayer connectionParameters);
 
 #endif  // _LINK_LAYER_H_

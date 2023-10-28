@@ -114,7 +114,6 @@ FILE *receiveFile(const char *filename) {
             pSize = llread(packet);
         }
         if (packet[0] == 2) {
-            printf("First llread\n");
             unsigned long int newfsize = 0;
             processControlPacket(packet, pSize, &newfsize);
         } else if (packet[0] == 1) {
