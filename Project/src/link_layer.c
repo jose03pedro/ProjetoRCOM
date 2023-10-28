@@ -432,7 +432,6 @@ int llclose(int showStatistics) {
         case LlTx:
             (void)signal(SIGALRM, alarmHandler);
             alarm(0);
-            // int nTry = 0;
             alarmEnabled = FALSE;
             STOP = FALSE;
             while (retranmissions_var > 0) {
@@ -498,7 +497,6 @@ int llclose(int showStatistics) {
                                 break;
                         }
                     } else {
-                        printf("Sending UA frame123123123\n");
                         transmitFrame(A_SR, C_UA);
                         alarm(0);
                         alarmEnabled = TRUE;
@@ -556,7 +554,6 @@ int llclose(int showStatistics) {
                             break;
                         case STOP_STATE:
                             transmitFrame(A_RS, C_DISC);
-                            printf("Sending DISC frame\n");
                             STOP = TRUE;
                             break;
                         default:
@@ -609,7 +606,6 @@ int llclose(int showStatistics) {
                             }
                             break;
                         case STOP_STATE:
-                            printf("Sending asdasd frame\n");
                             STOP = TRUE;
                             break;
                         default:
