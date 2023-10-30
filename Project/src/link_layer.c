@@ -270,10 +270,15 @@ int llwrite(const unsigned char *buf, int bufSize) {
         }
         if (ctrlF == C_RR0 || ctrlF == C_RR1) {
             accepted = 1;
-            if (ctrlF == C_RR0)
+            if (ctrlF == C_RR0){
+                printf("RR0\n");
                 localFrame = 0;
-            else if (ctrlF == C_RR1)
+            }
+            else if (ctrlF == C_RR1){
+                printf("RR1\n");
                 localFrame = 1;
+            }
+                
         }
         retransmissions_var--;
     }
@@ -297,7 +302,8 @@ int llread(unsigned char *packet) {
     unsigned int res = 0;
     State r_state = START_STATE;
 
-    do {
+    while (r_state != STOP_STATE) {
+        // printf("LocalFrame: %d\n", localFrame);
         if (read(fd, &r_byte, 1) > 0) {
             switch (r_state) {
                 case START_STATE:
@@ -312,11 +318,11 @@ int llread(unsigned char *packet) {
                 case A_RCV:
                     if (r_byte == C_I0 || r_byte == C_I1) {
                         if (r_byte == C_I0 && localFrame == 0) {
-                            localFrame++;
+                            localFrame = 1;
                             r_state = C_RCV;
                             cAux = BCC(r_byte, A_SR);
                         } else if (r_byte == C_I1 && localFrame == 1) {
-                            localFrame--;
+                            localFrame = 0;
                             r_state = C_RCV;
                             cAux = BCC(r_byte, A_SR);
                         }
@@ -342,25 +348,13 @@ int llread(unsigned char *packet) {
                     else
                         r_state = START_STATE;
                     break;
-                case STOP_STATE:
-                    if (r_byte == FLAG) {
-                        printf("Received the end of frame\n");
-                        transmitFrame(A_SR, C_UA);  // send UA frame
-                        ALARM_STOP = TRUE;
-                        alarm(0);
-                    } else {
-                        r_state = START_STATE;
-                    }
-                    break;  // Add 'break' statement here
-
                 case ESC_FOUND:
                     r_state = READING_DATA;
                     if (r_byte == STUF_ESCAPE)
                         packet[res++] = ESCAPE;
                     else if (r_byte == STUF_FLAG)
                         packet[res++] = FLAG;
-                    else
-                        printf("Stuffing error\n");
+                    printf("Iterator: %d\n", res);
                     break;
                 case READING_DATA:
                     if (r_byte == ESCAPE)
@@ -382,8 +376,9 @@ int llread(unsigned char *packet) {
                                 localFrame = 0;
                             }
                             return res;
-                        } else {
-                            printf("Error: retransmission\n");
+                        }
+                        else {
+                            printf("Error: retransmition\n");
                             if (localFrame == 0) {
                                 printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_REJ0);
@@ -392,8 +387,9 @@ int llread(unsigned char *packet) {
                                 // printf("localFrame = 1\n");
                             }
                             return -1;
-                        };
-                    } else {
+                        }
+                    } 
+                    else {
                         packet[res++] = r_byte;
                     }
                     break;
@@ -401,7 +397,7 @@ int llread(unsigned char *packet) {
                     break;
             }
         }
-    } while (r_state != STOP_STATE);
+    }
 
     return -1;
 }
