@@ -110,6 +110,10 @@ int llclose(int showStatistics);
 
 // Auxiliary Functions
 
+int llopenTransmitter(LinkLayer connectionParameters);
+
+int llopenReceiver(LinkLayer connectionParameters);
+
 int transmitFrame(unsigned char A, unsigned char C);
 
 int openConnection(const char *serialPort);

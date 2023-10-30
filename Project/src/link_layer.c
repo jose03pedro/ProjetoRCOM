@@ -34,99 +34,20 @@ int fd;
 ////////////////////////////////////////////////
 
 int llopen(LinkLayer connectionParameters) {
-    State state = START_STATE;
     setGlobalVars(connectionParameters);
     fd = openConnection(connectionParameters.serialPort);  // Abre a conexão
     if (fd < 0) {
         fprintf(stderr, "Error opening connection\n");
         exit(-1);
     }
-
-    int retransmissions_var = retransmissions;
-
     if (role == LlTx) {
-        (void)signal(SIGALRM, alarmHandler);
-
-        while (retransmissions_var > 0 && state != STOP_STATE) {
-            transmitFrame(A_SR, C_SET);  // send SET frame (sent 1st)
-            alarm(connectionParameters.timeout);
-            alarmEnabled = FALSE;
-            do {
-                unsigned char rByte;
-                if (read(fd, &rByte, 1) > 0) {
-                    switch (rByte) {
-                        case FLAG:
-                            if (state != BCC1_OK)
-                                state = FLAG_RCV;
-                            else
-                                state = STOP_STATE;
-                            break;
-                        case A_RS:
-                            if (state == FLAG_RCV)
-                                state = A_RCV;
-                            else
-                                state = START_STATE;
-                            break;
-                        case C_UA:
-                            if (state == A_RCV)
-                                state = C_RCV;
-                            else
-                                state = START_STATE;
-                            break;
-                        case BCC(A_RS, C_UA):
-                            if (state == C_RCV)
-                                state = BCC1_OK;
-                            else
-                                state = START_STATE;
-                            break;
-                        default:
-                            break;
-                    }
-                }
-
-            } while (alarmEnabled == FALSE && state != STOP_STATE);
-
-            retransmissions_var--;
-        }
-
-        if (state != STOP_STATE) {
-            fprintf(stderr, "Error establishing connection\n");
-            return -1;
-        }
+        
+        return llopenTransmitter(connectionParameters);
 
     } else if (role == LlRx) {
-        do {
-            unsigned char rByte;
-            if (read(fd, &rByte, 1) > 0) {
-                switch (rByte) {
-                    case FLAG:
-                        if (state == FLAG_RCV)
-                            state = A_RCV;
-                        else if (state == A_RCV)
-                            state = C_RCV;
-                        else
-                            state = START_STATE;
 
-                    case A_SR:
-                        if (state == FLAG_RCV)
-                            state = A_RCV;
-                        else if (state == A_RCV)
-                            state = C_RCV;
-                        else
-                            state = START_STATE;
-                    case BCC(A_SR, C_SET):
-                        if (state == C_RCV)
-                            state = BCC1_OK;
-                        else
-                            state = START_STATE;
-                    default:
-                        state = START_STATE;
-                        break;
-                }
-                state = STOP_STATE;
-            }
-        } while (state != STOP_STATE);
-        transmitFrame(A_RS, C_UA);  // send UA frame (sent 2nd)
+        return llopenReceiver(connectionParameters);
+
     } else {
         fprintf(stderr, "Error: Invalid role\n");
         return -1;
@@ -652,4 +573,103 @@ void setGlobalVars(LinkLayer connectionParameters) {
     retransmissions = connectionParameters.nRetransmissions;
     serialPort = connectionParameters.serialPort;
     baudRate = connectionParameters.baudRate;
+}
+
+int llopenTransmitter(LinkLayer connectionParameters) {
+    State state = START_STATE;
+    (void)signal(SIGALRM, alarmHandler);
+
+    int retransmissions_var = retransmissions;
+
+    while (retransmissions_var > 0 && state != STOP_STATE) {
+        transmitFrame(A_SR, C_SET);  // send SET frame (sent 1st)
+        alarm(connectionParameters.timeout);
+        alarmEnabled = FALSE;
+
+        do {
+            unsigned char rByte;
+            if (read(fd, &rByte, 1) > 0) {
+                switch (rByte) {
+                    case FLAG:
+                        if (state != BCC1_OK)
+                            state = FLAG_RCV;
+                        else
+                            state = STOP_STATE;
+                        break;
+                    case A_RS:
+                        if (state == FLAG_RCV)
+                            state = A_RCV;
+                        else
+                            state = START_STATE;
+                        break;
+                    case C_UA:
+                        if (state == A_RCV)
+                            state = C_RCV;
+                        else
+                            state = START_STATE;
+                        break;
+                    case BCC(A_RS, C_UA):
+                        if (state == C_RCV)
+                            state = BCC1_OK;
+                        else
+                            state = START_STATE;
+                        break;
+                    default:
+                        break;
+                }
+                }
+        } while (alarmEnabled == FALSE && state != STOP_STATE);
+
+        retransmissions_var--;
+    }
+
+    if (state != STOP_STATE) {
+        fprintf(stderr, "Error establishing connection\n");
+        return -1;
+    }
+
+    alarm(0);
+    printf("Connection established\n");
+    return 1;
+}
+
+int llopenReceiver(LinkLayer connectionParameters) {
+    State state = START_STATE;
+
+    do {
+        unsigned char rByte;
+        if (read(fd, &rByte, 1) > 0) {
+                switch (rByte) {
+                    case FLAG:
+                        if (state == FLAG_RCV)
+                            state = A_RCV;
+                        else if (state == A_RCV)
+                            state = C_RCV;
+                        else
+                            state = START_STATE;
+
+                    case A_SR:
+                        if (state == FLAG_RCV)
+                            state = A_RCV;
+                        else if (state == A_RCV)
+                            state = C_RCV;
+                        else
+                            state = START_STATE;
+                    case BCC(A_SR, C_SET):
+                        if (state == C_RCV)
+                            state = BCC1_OK;
+                        else
+                            state = START_STATE;
+                    default:
+                        state = START_STATE;
+                        break;
+                }
+                state = STOP_STATE;
+            }
+    } while (state != STOP_STATE);
+
+    transmitFrame(A_RS, C_UA);  // send UA frame (sent 2nd)
+
+    printf("Connection established\n");
+    return 1;
 }
