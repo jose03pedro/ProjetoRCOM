@@ -330,7 +330,6 @@ int llclose(int showStatistics) {
     State state = START_STATE;
     int retranmissions_var = retransmissions;
     int STOP = FALSE;
-    printf("retranmissions_var : %d\n", retranmissions_var);
     switch (role) {
         case LlTx:
             (void)signal(SIGALRM, alarmHandler);
