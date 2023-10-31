@@ -127,8 +127,10 @@ int llwrite(const unsigned char *buf, int bufSize) {
     }
 
     int retransmissions_var = retransmissions;
-    int accepted = 0;
+    int accepted = FALSE;
     unsigned char ctrlF = 0;
+    printf("LocalFrame: %d\n", localFrame);
+
 
     while (!accepted && (retransmissions_var > 0)) {
         printf("Writing...\n");
@@ -141,7 +143,6 @@ int llwrite(const unsigned char *buf, int bufSize) {
         unsigned char rByte_temp = 0;
         ctrlF = 0;
         while (alarmEnabled == FALSE) {
-            // unsigned char rByte;
             if (read(fd, &rByte_temp, 1) > 0) {
                 switch (state) {
                     case START_STATE:
@@ -179,7 +180,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
                         break;
                     case BCC1_OK:
                         if (rByte_temp == FLAG) {
-                            return ctrlF;
+                            state = STOP_STATE;
+                            alarmEnabled = TRUE;
                         } else {
                             state = START_STATE;
                         }
@@ -190,28 +192,24 @@ int llwrite(const unsigned char *buf, int bufSize) {
             }
         }
         if (ctrlF == C_RR0 || ctrlF == C_RR1) {
-            accepted = 1;
+            accepted = TRUE;
             if (ctrlF == C_RR0){
-                printf("RR0\n");
                 localFrame = 0;
             }
             else if (ctrlF == C_RR1){
-                printf("RR1\n");
                 localFrame = 1;
             }
                 
+        }
+        if(accepted == TRUE){
+            return ctrlF;
         }
         retransmissions_var--;
     }
     alarmCount = 0;
     free(frame);
-    if (accepted) {
-        llclose(1);
-        return ctrlF;
-    } else {
-        llclose(1);
-        return -1;
-    }
+    llclose(1);
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -222,9 +220,9 @@ int llread(unsigned char *packet) {
     unsigned char r_byte, cAux, bcc2, acc;
     unsigned int res = 0;
     State r_state = START_STATE;
+    printf("LocalFrame: %d\n", localFrame);
 
     while (r_state != STOP_STATE) {
-        // printf("LocalFrame: %d\n", localFrame);
         if (read(fd, &r_byte, 1) > 0) {
             switch (r_state) {
                 case START_STATE:
@@ -288,24 +286,22 @@ int llread(unsigned char *packet) {
                         if (bcc2 == acc) {
                             r_state = STOP_STATE;
                             if (localFrame == 0) {
-                                printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_RR0);
-                                localFrame = 1;
+                                return res;
                             } else if (localFrame == 1) {
-                                // printf("localFrame = 1\n");
                                 transmitFrame(A_RS, C_RR1);
-                                localFrame = 0;
+                                return res;
                             }
                             return res;
                         }
                         else {
                             printf("Error: retransmition\n");
                             if (localFrame == 0) {
-                                printf("localFrame = 0\n");
                                 transmitFrame(A_RS, C_REJ0);
+                                return -1;
                             } else if (localFrame == 1) {
                                 transmitFrame(A_RS, C_REJ1);
-                                // printf("localFrame = 1\n");
+                                return -1;
                             }
                             return -1;
                         }
@@ -330,7 +326,6 @@ int llclose(int showStatistics) {
     State state = START_STATE;
     int retranmissions_var = retransmissions;
     int STOP = FALSE;
-    printf("retranmissions_var : %d\n", retranmissions_var);
     switch (role) {
         case LlTx:
             (void)signal(SIGALRM, alarmHandler);
