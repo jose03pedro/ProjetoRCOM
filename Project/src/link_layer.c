@@ -15,7 +15,7 @@ void alarmHandler(int signal) {
     alarmEnabled = TRUE;
     alarmCount++;
 
-    printf("Alarm %d\n", alarmCount);
+    printf("Alarm nº%d\n", alarmCount);
 }
 
 int retransmissions = 0;
@@ -41,11 +41,9 @@ int llopen(LinkLayer connectionParameters) {
         exit(-1);
     }
     if (role == LlTx) {
-        
         return llopenTransmitter(connectionParameters);
 
     } else if (role == LlRx) {
-
         return llopenReceiver(connectionParameters);
 
     } else {
@@ -126,11 +124,8 @@ int llwrite(const unsigned char *buf, int bufSize) {
             break;
     }
 
-    int retransmissions_var = retransmissions;
-    int accepted = FALSE;
-    unsigned char ctrlF = 0;
+    int retransmissions_var = retransmissions, accepted = FALSE;
     printf("LocalFrame: %d\n", localFrame);
-
 
     while (!accepted && (retransmissions_var > 0)) {
         printf("Writing...\n");
@@ -140,8 +135,7 @@ int llwrite(const unsigned char *buf, int bufSize) {
         alarmEnabled = FALSE;
         State state = START_STATE;
 
-        unsigned char rByte_temp = 0;
-        ctrlF = 0;
+        unsigned char rByte_temp = 0, ctrlF = 0;
         while (alarmEnabled == FALSE) {
             if (read(fd, &rByte_temp, 1) > 0) {
                 switch (state) {
@@ -193,15 +187,13 @@ int llwrite(const unsigned char *buf, int bufSize) {
         }
         if (ctrlF == C_RR0 || ctrlF == C_RR1) {
             accepted = TRUE;
-            if (ctrlF == C_RR0){
+            if (ctrlF == C_RR0) {
                 localFrame = 0;
-            }
-            else if (ctrlF == C_RR1){
+            } else if (ctrlF == C_RR1) {
                 localFrame = 1;
             }
-                
         }
-        if(accepted == TRUE){
+        if (accepted == TRUE) {
             return ctrlF;
         }
         retransmissions_var--;
@@ -273,7 +265,6 @@ int llread(unsigned char *packet) {
                         packet[res++] = ESCAPE;
                     else if (r_byte == STUF_FLAG)
                         packet[res++] = FLAG;
-                    printf("Iterator: %d\n", res);
                     break;
                 case READING_DATA:
                     if (r_byte == ESCAPE)
@@ -293,8 +284,7 @@ int llread(unsigned char *packet) {
                                 return res;
                             }
                             return res;
-                        }
-                        else {
+                        } else {
                             printf("Error: retransmition\n");
                             if (localFrame == 0) {
                                 transmitFrame(A_RS, C_REJ0);
@@ -305,8 +295,7 @@ int llread(unsigned char *packet) {
                             }
                             return -1;
                         }
-                    } 
-                    else {
+                    } else {
                         packet[res++] = r_byte;
                     }
                     break;
@@ -322,6 +311,7 @@ int llread(unsigned char *packet) {
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
+
 int llclose(int showStatistics) {
     State state = START_STATE;
     int retranmissions_var = retransmissions;
@@ -333,7 +323,6 @@ int llclose(int showStatistics) {
             alarmEnabled = FALSE;
             STOP = FALSE;
             while (retranmissions_var > 0) {
-                // send disconnect frame
                 if (transmitFrame(A_SR, C_DISC) < 0) {
                     perror("Error writing disconnect frame\n");
                     return -1;
@@ -612,7 +601,7 @@ int llopenTransmitter(LinkLayer connectionParameters) {
                     default:
                         break;
                 }
-                }
+            }
         } while (alarmEnabled == FALSE && state != STOP_STATE);
 
         retransmissions_var--;
@@ -631,37 +620,37 @@ int llopenTransmitter(LinkLayer connectionParameters) {
 int llopenReceiver(LinkLayer connectionParameters) {
     State state = START_STATE;
 
-    do {
+    while (state != STOP_STATE) {
         unsigned char rByte;
         if (read(fd, &rByte, 1) > 0) {
-                switch (rByte) {
-                    case FLAG:
-                        if (state == FLAG_RCV)
-                            state = A_RCV;
-                        else if (state == A_RCV)
-                            state = C_RCV;
-                        else
-                            state = START_STATE;
-
-                    case A_SR:
-                        if (state == FLAG_RCV)
-                            state = A_RCV;
-                        else if (state == A_RCV)
-                            state = C_RCV;
-                        else
-                            state = START_STATE;
-                    case BCC(A_SR, C_SET):
-                        if (state == C_RCV)
-                            state = BCC1_OK;
-                        else
-                            state = START_STATE;
-                    default:
+            switch (rByte) {
+                case FLAG:
+                    if (state == FLAG_RCV)
+                        state = A_RCV;
+                    else if (state == A_RCV)
+                        state = C_RCV;
+                    else
                         state = START_STATE;
-                        break;
-                }
-                state = STOP_STATE;
+
+                case A_SR:
+                    if (state == FLAG_RCV)
+                        state = A_RCV;
+                    else if (state == A_RCV)
+                        state = C_RCV;
+                    else
+                        state = START_STATE;
+                case BCC(A_SR, C_SET):
+                    if (state == C_RCV)
+                        state = BCC1_OK;
+                    else
+                        state = START_STATE;
+                default:
+                    state = START_STATE;
+                    break;
             }
-    } while (state != STOP_STATE);
+            state = STOP_STATE;
+        }
+    }
 
     transmitFrame(A_RS, C_UA);  // send UA frame (sent 2nd)
 

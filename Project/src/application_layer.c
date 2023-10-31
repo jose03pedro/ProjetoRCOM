@@ -11,10 +11,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     llopen(connectionParameters);
 
-    LinkLayerRole connection_role = connectionParameters.role;
+    LinkLayerRole connectionRole = connectionParameters.role;
     FILE *file = NULL;
 
-    switch (connection_role) {
+    switch (connectionRole) {
         case LlTx:
             file = fopen(filename, "rb");
             if (file == NULL) {
@@ -78,10 +78,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 }
 
 long int getFileSize(FILE *file) {
-    int start_pos = ftell(file);
+    int startPos = ftell(file);
     fseek(file, 0L, SEEK_END);
-    long int fileSize = ftell(file) - start_pos;
-    fseek(file, start_pos, SEEK_SET);
+    long int fileSize = ftell(file) - startPos;
+    fseek(file, startPos, SEEK_SET);
     return fileSize;
 }
 
@@ -139,30 +139,23 @@ unsigned char *buildControlPacket(unsigned int controlField,
     int fileSizeLength = 0;
     long int tempFileSize = fileSize;
 
-    // Calculate the number of bytes needed to represent the fileSize
     while (tempFileSize != 0) {
         tempFileSize = tempFileSize >> 8;
         fileSizeLength++;
     }
 
-    // Calculate the total size of the control packet
     *packetSize = 1 + 2 + fileSizeLength + 2 + filenameLength;
 
-    // Allocate memory for the control packet
     unsigned char *controlPacket = (unsigned char *)malloc(*packetSize);
 
     unsigned int offset = 0;
 
-    // Add the control field to the control packet
     controlPacket[offset++] = controlField;
 
-    // Add reserved byte (0) to the control packet
     controlPacket[offset++] = 0;
 
-    // Add the fileSize size in bytes to the control packet
     controlPacket[offset++] = fileSizeLength;
 
-    // Copy the fileSize bytes to the control packet
     tempFileSize = fileSize;
     for (int i = 0; i < fileSizeLength; i++) {
         controlPacket[offset + fileSizeLength - i] = tempFileSize & 0xFF;
@@ -171,13 +164,10 @@ unsigned char *buildControlPacket(unsigned int controlField,
 
     offset += fileSizeLength;
 
-    // Add the filename field indicator
     controlPacket[offset++] = 1;
 
-    // Add the size of the filename field to the control packet
     controlPacket[offset++] = filenameLength;
 
-    // Copy the filename to the control packet
     memcpy(controlPacket + offset, filename, filenameLength);
 
     return controlPacket;
